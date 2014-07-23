@@ -41,17 +41,55 @@ Note that this documentation is intended as a reference to the module.
 =head1 DESCRIPTION
 
 L<Apache Maven|http://maven.apache.org/>  has a peculiar way to compare Artifact versions.
-The aim of this module is to exactly reproduce this way in hope that it could be usefull to write utils like SCM hooks to quickly ensure an Artifact version respect a grow order without to have to install Java and Maven on the system in charge of this checking.
+The aim of this module is to exactly reproduce this way in hope that it could be usefull to someone that wants to write utils like SCM hooks. It may quickly ensure an Artifact version respect a grow order without to have to install Java and Maven on the system in charge of this checking.
 
 The official Apache document that describes it is here L<http://docs.codehaus.org/display/MAVEN/Versioning>.
 But don't blindly believe everything. Take the red pill, and I show you how deep the rabbit-hole goes.
-Because there is a gap between the truth coded in C<org.apache.maven.artifact.versioning.ComparableVersion.java> that can be found L<here|https://github.com/apache/maven/blob/master/maven-artifact/src/main/java/org/apache/maven/artifact/versioning/ComparableVersion.java> and this document.
+Because there is a gap between the truth coded in C<org.apache.maven.artifact.versioning.ComparableVersion.java> that can be found L<here|https://github.com/apache/maven/blob/master/maven-artifact/src/main/java/org/apache/maven/artifact/versioning/ComparableVersion.java> and that official document.
 
+Fortunately this module cares about the real comparison differences hard coded in C<ComparableVersion> and reproduces it.
 
+=head2 What are differences between the comparison behaviors and the one is described in the official doc ?
 
+=head3 version beginning with separator char (dot '.' or dash '-')
 
+A version that begins with a separator is automatically prefixed by zero.
+Then C<-1> will be internally moved to C<0-1>.
 
-TODO say normalize is done when a dash '-' is preceed by a digit, before alias replacement
+=head3 The dash separator "B<->" 
+
+The dash separator "B<->" will create a C<listitem> only if it is preceeded by an C<integeritem> and it is followed by a digit.
+Then when they say I<1-alpha10-SNAPSHOT => [1,["alpha",10,["SNAPSHOT"]]]> understand it's wrong. C<1-alpha10-SNAPSHOT> is internally reprensented by C<[1,"alpha",10,"SNAPSHOT"]>. That has a fully different comparison behavior because no sub C<listitem> is created.
+
+=head3 Normalization
+
+Normalization is a very important behavior in version comparisons but it is not described at all in the official Maven document.
+So what is I<normalization> ?
+It's kind of reducing version components function.
+Its aim is to shoot useless version components in an artifact version. To simplify it, understand C<1.0> must be internally represented by C<1> in comparison.
+But I<normalization> appends in specific times during artifact version parsing.
+
+It appends:
+
+=over 4
+
+=item each time a dash 'C<->' separator is preceded by a digit but B<before> any alias substitution
+
+=item at the end of each parsed C<listitem>, then B<after> all alias substitution
+
+=back
+
+And normalization process the current parsed C<listitem> from its current last position on each C<nullitem> encountered until a non C<nullitem> is encountered or until the begining of this C<listitem>.
+
+Then understand :
+
+    1.0.alpha.0 becomes (1,0,alpha) #because alpha is not preceded by a dash and because last 0 is the end of the main C<listitem>
+    1.0-final-1 becomes (1,,1) #because 0 preceded a dash and because final has been substituted by '' and the last item is not a C<nullitem>
+    0.0.ga becomes () # because 'ga' has been substituted by '' and when the C<listitem> has been normalized at the end, all items where C<nullitem>s
+    final-0.1 becomes (,0,1) # because normalization has not been called after first dash because it was not been preceded by a digit.
+
+If you told me I<WTF ?>, I would answer I am not responsible of drug consumption...
+
 
 =head2 NULL_ITEM
 
@@ -347,7 +385,7 @@ sub _to_normalized_string {
   my ($items) = @_;
   my $s = '(';
   foreach my $i (@$items) {
-    $s .= ',' if ($s ne '(');
+    $s .= ',' if ($s ne '('); #TODO fix when first item == '', a ',' must still be appended
     if (ref($i) eq 'ARRAY') {
       $s .= _to_normalized_string($i);
     } else {

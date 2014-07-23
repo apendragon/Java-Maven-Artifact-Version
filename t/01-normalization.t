@@ -5,7 +5,7 @@ use warnings FATAL => 'all';
 use Test::More;
 use Java::Maven::Artifact::Version;
 
-plan tests => 14;
+plan tests => 16;
 
 BEGIN {
   my $v = Java::Maven::Artifact::Version->new('1.0');
@@ -64,6 +64,15 @@ BEGIN {
   #test 14 : special alias 'm\d' normalization test
   $v = Java::Maven::Artifact::Version->new('1-m1');
   is($v->to_string(), '(1,milestone,1)');
+
+#  #test 15 : null alias start followed by non nullitem
+#  $v = Java::Maven::Artifact::Version->new('final-0.1');
+#  is($v->to_string(), '(,0,1)');
+
+  #test 16 : only nullitems
+  $v = Java::Maven::Artifact::Version->new('final.0.0');
+  is($v->to_string(), '()');
+  
 }
 
 diag( "Testing normalization Java::Maven::Artifact::Version $Java::Maven::Artifact::Version::VERSION feature" );
