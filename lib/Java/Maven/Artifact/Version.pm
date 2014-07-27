@@ -323,6 +323,13 @@ sub _split_to_to_normalize {
   split('</version>', $string);
 }
 
+# replace all following separators ('..', '--', '-.' or '.-') by .0.
+# or replace leading separator by '0.'
+# '-1..1' -> '0.1.0.1'
+sub _append_zero {
+  join '.',  map { $_ eq '' ? '0' : $_  } split /\-|\./, shift;
+}
+
 # _split_to_items must only be called when version has been splitted into listitems
 # Then it works only on a single listitem
 sub _split_to_items {
@@ -332,6 +339,7 @@ sub _split_to_items {
   #at this time we must replace aliases with their values 
   my $closure = sub {
     my ($i) = shift;
+    $i = _append_zero($i);
     $i = _replace_special_aliases($i); #must be replaced BEFORE items splitting
     my @xs = split(/\-|\./, $i);
     my @xsp = map({ _replace_alias($_) } @xs); #must be replaced after items splitting
@@ -416,7 +424,6 @@ sub new {
   unless ($version) {
     $version = 0;
   }
-  $version =~ s/^(\-|\.)/0$1/; #add leading zero when starts by dash or dot
   $version = lc($version); #TODO use locale.EN
   my $this = {};
   bless($this, $class);
