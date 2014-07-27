@@ -25,13 +25,14 @@ Note that this documentation is intended as a reference to the module.
 
     use Java::Maven::Artifact::Version;
 
-    my $foo_version = Java::Maven::Artifact::Version->new(version => '1.0');
-    my $bar_version = Java::Maven::Artifact::Version->new(version => '1-0-alpha');
-    my $x = $bar_version->compare_to($bar_version); # $x = 0
-    ...
 
     my $com_version = Java::Maven::Artifact::Version->new(version => '1-alpha');
     my $y = $com_version->compare_to('1-beta'); # $y = -1 
+    ...
+
+    my $foo_version = Java::Maven::Artifact::Version->new(version => '1.0');
+    my $bar_version = Java::Maven::Artifact::Version->new(version => '1-0-alpha');
+    my $x = $bar_version->compare_to($bar_version); # $x = 0
     ...
 
     my $baz_version = Java::Maven::Artifact::Version->new(version => '1-1.2-alpha');
@@ -51,10 +52,12 @@ Fortunately this module cares about the real comparison differences hard coded i
 
 =head2 What are differences between the comparison behaviors and the one is described in the official doc ?
 
-=head3 version beginning with separator char (dot '.' or dash '-')
+=head3 zero ('C<0>') appending on nude separator char (dot '.' or dash '-')
 
-A version that begins with a separator is automatically prefixed by zero.
-Then C<-1> will be internally moved to C<0-1>.
+During parsing if a separator char is encountered and it was not preceded by a stringitem or a listitem, a zero char ('C<0>') is automatically appended.
+Then a version that begins with a separator is automatically prefixed by zero.
+C<-1> will be internally moved to C<0-1>.
+C<1....1> will be internally moved to C<1.0.0.0.1>.
 
 =head3 The dash separator "B<->" 
 
@@ -66,24 +69,24 @@ Then when they say I<1-alpha10-SNAPSHOT => [1,["alpha",10,["SNAPSHOT"]]]> unders
 Normalization is a very important behavior in version comparisons but it is not described at all in the official Maven document.
 So what is I<normalization> ?
 It's kind of reducing version components function.
-Its aim is to shoot useless version components in an artifact version. To simplify it, understand C<1.0> must be internally represented by C<1> in comparison.
+Its aim is to shoot useless version components in an artifact version. To simplify it, understand C<1.0> must be internally represented by C<1> during comparison.
 But I<normalization> appends in specific times during artifact version parsing.
 
 It appends:
 
 =over 4
 
-=item each time a dash 'C<->' separator is preceded by a digit but B<before> any alias substitution
+=item each time a dash 'C<->' separator is preceded and followed by a digit but B<before> any alias substitution
 
 =item at the end of each parsed C<listitem>, then B<after> all alias substitution
 
 =back
 
-And normalization process the current parsed C<listitem> from its current last position on each C<nullitem> encountered until a non C<nullitem> is encountered or until the begining of this C<listitem>.
+And normalization process the current parsed C<listitem> from its current position when normalization is called, on each encountered C<nullitem> until a non C<nullitem> is encountered or until the begining of this C<listitem>.
 
 Then understand :
 
-    1.0.alpha.0 becomes (1,0,alpha) #because alpha is not preceded by a dash and because last 0 is the end of the main C<listitem>
+    1.0.alpha.0 becomes (1,0,alpha) #because when the main C<listitem> parsing has ended, normalization has been called. Last item was 0, 0 is the nullitem of integeritem, then it has been shooted. Next last item was alpha that is note a nullitem then normalization process stopped.
     1.0-final-1 becomes (1,,1) #because 0 preceded a dash and because final has been substituted by '' and the last item is not a C<nullitem>
     0.0.ga becomes () # because 'ga' has been substituted by '' and when the C<listitem> has been normalized at the end, all items where C<nullitem>s
     final-0.1 becomes (,0,1) # because normalization has not been called after first dash because it was not been preceded by a digit.
@@ -91,59 +94,21 @@ Then understand :
 If you told me I<WTF ?>, I would answer I am not responsible of drug consumption...
 
 
-=head2 NULL_ITEM
-
-=cut
-
-=head2 STRING_ITEM
-
-=cut
-
-=head2 SNAPSHOT
-
-=cut
-
-=head2 SP
-
-=cut
-
-
-=head2 INTEGER_ITEM
-
-=cut
-
-=head2 LIST_ITEM
-
-=cut
-
-=head2 ALPHA
-
-=cut
-
-=head2 BETA
-  
-=cut
-
-=head2 MILESTONE
-
-=cut
-
-=head2 RC
 
 =cut
 
 use constant {
-  ALPHA        => 'alpha',
-  BETA         => 'beta', 
-  DEBUG        => 1,
-  INTEGER_ITEM => 'integeritem',
-  LIST_ITEM    => 'listitem',
-  MILESTONE    => 'milestone',
-  NULL_ITEM    => 'nullitem',
-  RC           => 'rc',
-  SNAPSHOT     => 'snapshot',
-  SP           => 'sp',
-  STRING_ITEM  => 'stringitem',
+  _ALPHA        => 'alpha',
+  _BETA         => 'beta', 
+  _DEBUG        => 1,
+  _INTEGER_ITEM => 'integeritem',
+  _LIST_ITEM    => 'listitem',
+  _MILESTONE    => 'milestone',
+  _NULL_ITEM    => 'nullitem',
+  _RC           => 'rc',
+  _SNAPSHOT     => 'snapshot',
+  _SP           => 'sp',
+  _STRING_ITEM  => 'stringitem',
 };
 
 =head1 SUBROUTINES/METHODS
@@ -152,7 +117,7 @@ use constant {
 
 sub _identify_scalar_item_type {
   my ($scalar) = @_;
-  $scalar =~ m/^\d+$/ ? INTEGER_ITEM : STRING_ITEM;
+  $scalar =~ m/^\d+$/ ? _INTEGER_ITEM : _STRING_ITEM;
 }
 
 sub _getref {
@@ -173,33 +138,33 @@ sub _reftype {
 sub _identify_item_type {
   my ($item) = @_;
   my $types = {
-    'undef'   => sub { NULL_ITEM }, 
+    'undef'   => sub { _NULL_ITEM }, 
     'SCALAR'  => sub { _identify_scalar_item_type($item) }, 
-    'ARRAY'   => sub { LIST_ITEM },
+    'ARRAY'   => sub { _LIST_ITEM },
     _DEFAULT_ => sub { die "unable to identify item type of item $item ." }
   };
   my $t = _reftype($item);  
-  print("_identify_item_type($t)\n") if (DEBUG);
+  print("_identify_item_type($t)\n") if (_DEBUG);
   exists $types->{$t} ? $types->{$t}->() : $types->{_DEFAULT_}->();
 }
 
 sub _compare_integeritem_to {
   my ($integeritem, $item) = @_;
   my $dispatch = {
-    &NULL_ITEM    => sub {
-      print("comparing $integeritem to nullitem\n") if (DEBUG); 
+    &_NULL_ITEM    => sub {
+      print("comparing $integeritem to nullitem\n") if (_DEBUG); 
       $integeritem =~ m/^0+$/ ? 0 : 1;
     },
-    &LIST_ITEM    => sub {
-      print("comparing $integeritem to listitem\n") if (DEBUG); 
+    &_LIST_ITEM    => sub {
+      print("comparing $integeritem to listitem\n") if (_DEBUG); 
       1;
     },
-    &INTEGER_ITEM => sub {
-      print("comparing $integeritem to $item\n") if (DEBUG); 
+    &_INTEGER_ITEM => sub {
+      print("comparing $integeritem to $item\n") if (_DEBUG); 
       $integeritem <=> $item;
     },
-    &STRING_ITEM  => sub {
-      print("comparing $integeritem to stringitem\n") if (DEBUG); 
+    &_STRING_ITEM  => sub {
+      print("comparing $integeritem to stringitem\n") if (_DEBUG); 
       1;
     }
   };
@@ -209,21 +174,21 @@ sub _compare_integeritem_to {
 sub _compare_items {
   my ($item1, $item2) = @_;
   my $dispatch = {
-    &NULL_ITEM    => sub {
-      print("_compare_items(nullitem, ?)\n") if (DEBUG); 
+    &_NULL_ITEM    => sub {
+      print("_compare_items(nullitem, ?)\n") if (_DEBUG); 
       return 0 unless (defined($item2));
       _compare_items($item2, undef) * -1;
     },
-    &LIST_ITEM    => sub {
-      print("_compare_items(listitem, ?)\n") if (DEBUG); 
+    &_LIST_ITEM    => sub {
+      print("_compare_items(listitem, ?)\n") if (_DEBUG); 
       _compare_listitem_to($item1, $item2);
     },
-    &INTEGER_ITEM => sub {
-      print("_compare_items(integeritem, ?)\n") if (DEBUG);
+    &_INTEGER_ITEM => sub {
+      print("_compare_items(integeritem, ?)\n") if (_DEBUG);
       _compare_integeritem_to($item1, $item2);
     },
-    &STRING_ITEM  => sub {
-      print("_compare_items(stringitem, ?)\n") if (DEBUG);
+    &_STRING_ITEM  => sub {
+      print("_compare_items(stringitem, ?)\n") if (_DEBUG);
       _compare_stringitem_to($item1, $item2);
     }
   };
@@ -233,10 +198,10 @@ sub _compare_items {
 sub _compare_listitem_to {
   my ($listitem, $item) = @_;
   my $dispatch = {
-    &NULL_ITEM    => sub { _compare_listitem_to_nullitem($listitem) },
-    &LIST_ITEM    => sub { _compare_listitems($listitem, $item) },
-    &INTEGER_ITEM => sub { -1 },
-    &STRING_ITEM  => sub { 1 }
+    &_NULL_ITEM    => sub { _compare_listitem_to_nullitem($listitem) },
+    &_LIST_ITEM    => sub { _compare_listitems($listitem, $item) },
+    &_INTEGER_ITEM => sub { -1 },
+    &_STRING_ITEM  => sub { 1 }
   };
   $dispatch->{_identify_item_type($item)}->();
 }
@@ -274,10 +239,10 @@ sub _compare_to_mvn_version {
 sub _compare_stringitem_to {
   my ($stringitem, $item) = @_;
   my $dispatch = {
-    &NULL_ITEM    => sub { _compare_stringitem_to_stringitem($stringitem, $item) },
-    &LIST_ITEM    => sub { _compare_listitem_to($item, $stringitem) * -1 },
-    &INTEGER_ITEM => sub { _compare_integeritem_to($item, $stringitem) * -1 },
-    &STRING_ITEM  => sub { _compare_stringitem_to_stringitem($stringitem, $item) }
+    &_NULL_ITEM    => sub { _compare_stringitem_to_stringitem($stringitem, $item) },
+    &_LIST_ITEM    => sub { _compare_listitem_to($item, $stringitem) * -1 },
+    &_INTEGER_ITEM => sub { _compare_integeritem_to($item, $stringitem) * -1 },
+    &_STRING_ITEM  => sub { _compare_stringitem_to_stringitem($stringitem, $item) }
   };
   $dispatch->{_identify_item_type($item)}->();
 }
@@ -355,27 +320,27 @@ sub _split_to_lists {
 
 sub _identify_qualifier {
   my ($stringitem) = @_;
-  return NULL_ITEM unless defined($stringitem);
-  return ALPHA     if $stringitem =~ m/^(alpha|a\d+)$/;
-  return BETA      if $stringitem =~ m/^(beta|b\d+)$/;
-  return MILESTONE if $stringitem =~ m/^(milestone|m\d+)$/;
-  return RC        if $stringitem =~ m/^rc$/;
-  return SNAPSHOT  if $stringitem =~ m/^snapshot$/;
-  return NULL_ITEM if $stringitem =~ m/^$/;
-  return SP        if $stringitem =~ m/^sp$/;
+  return _NULL_ITEM unless defined($stringitem);
+  return _ALPHA     if $stringitem =~ m/^(alpha|a\d+)$/;
+  return _BETA      if $stringitem =~ m/^(beta|b\d+)$/;
+  return _MILESTONE if $stringitem =~ m/^(milestone|m\d+)$/;
+  return _RC        if $stringitem =~ m/^rc$/;
+  return _SNAPSHOT  if $stringitem =~ m/^snapshot$/;
+  return _NULL_ITEM if $stringitem =~ m/^$/;
+  return _SP        if $stringitem =~ m/^sp$/;
   '_DEFAULT_';
 }
 
 sub _substitute_to_qualifier {
   my ($stringitem) = @_;
   my $qualifier_cmp_values = {
-    &ALPHA     => '0',
-    &BETA      => '1',
-    &MILESTONE => '2',
-    &RC        => '3',
-    &SNAPSHOT  => '4',
-    &NULL_ITEM => '5',
-    &SP        => '6',
+    &_ALPHA     => '0',
+    &_BETA      => '1',
+    &_MILESTONE => '2',
+    &_RC        => '3',
+    &_SNAPSHOT  => '4',
+    &_NULL_ITEM => '5',
+    &_SP        => '6',
     _DEFAULT_  => $stringitem ? "7-$stringitem" : '7-' #yes they really did that in ComparableVersion...
   };
   $qualifier_cmp_values->{_identify_qualifier($stringitem)};
