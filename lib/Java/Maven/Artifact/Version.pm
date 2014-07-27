@@ -323,6 +323,13 @@ sub _split_to_to_normalize {
   split('</version>', $string);
 }
 
+sub _append_zero {
+  my ($string) = shift;
+#  $string =~ s/^(\-|\.)/0$1/;           #zero appending when starts by dash or dot
+  $string =~ s/(\-|\.)(\-|\.)/${1}0$2/g; #or when 1 separator immediately succeeds an other one
+  $string;
+}
+
 # _split_to_items must only be called when version has been splitted into listitems
 # Then it works only on a single listitem
 sub _split_to_items {
@@ -416,7 +423,6 @@ sub new {
   unless ($version) {
     $version = 0;
   }
-  $version =~ s/^(\-|\.)/0$1/; #add leading zero when starts by dash or dot
   $version = lc($version); #TODO use locale.EN
   my $this = {};
   bless($this, $class);

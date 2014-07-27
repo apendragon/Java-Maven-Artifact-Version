@@ -5,7 +5,7 @@ use warnings FATAL => 'all';
 use Test::More;
 use Java::Maven::Artifact::Version;
 
-plan tests => 16;
+plan tests => 17;
 
 BEGIN {
   my $v = Java::Maven::Artifact::Version->new('1.0');
@@ -73,6 +73,9 @@ BEGIN {
   $v = Java::Maven::Artifact::Version->new('final.0.0');
   is($v->to_string(), '()');
   
+  #test 17 : zero appending does not build listitem on dash
+  $v = Java::Maven::Artifact::Version->new('-1-.1');
+  is($v->to_string(), '(0,1,0,1)');
 }
 
 diag( "Testing normalization Java::Maven::Artifact::Version $Java::Maven::Artifact::Version::VERSION feature" );
