@@ -9,11 +9,13 @@ use Language::Functional;
 
 =head1 NAME
 
-Java::Maven::Artifact::Version - a perl module for comparing Artifact versions like Maven does.
+Java::Maven::Artifact::Version - a perl module for comparing Artifact versions exactly like Maven does.
 
 =head1 VERSION
 
 Version 1.00
+
+see L</Maven version compatibility>.
 
 =cut
 
@@ -50,19 +52,28 @@ Because there is a gap between the truth coded in C<org.apache.maven.artifact.ve
 
 Fortunately this module cares about the real comparison differences hard coded in C<ComparableVersion> and reproduces it.
 
-=head2 What are differences between the comparison behaviors and the one is described in the official doc ?
+=head2 What are differences between real Maven comparison behaviors and those that are described in the official Maven doc ?
 
 =head3 zero ('C<0>') appending on nude separator char (dot '.' or dash '-')
 
 During parsing if a separator char is encountered and it was not preceded by a stringitem or a listitem, a zero char ('C<0>') is automatically appended.
 Then a version that begins with a separator is automatically prefixed by zero.
-C<-1> will be internally moved to C<0-1>.
-C<1....1> will be internally moved to C<1.0.0.0.1>.
+
+'C<-1>' will be internally moved to 'C<0-1>'.
+
+'C<1....1>' will be internally moved to 'C<1.0.0.0.1>'.
 
 =head3 The dash separator "B<->" 
 
 The dash separator "B<->" will create a C<listitem> only if it is preceeded by an C<integeritem> and it is followed by a digit.
-Then when they say I<1-alpha10-SNAPSHOT => [1,["alpha",10,["SNAPSHOT"]]]> understand it's wrong. C<1-alpha10-SNAPSHOT> is internally reprensented by C<[1,"alpha",10,"SNAPSHOT"]>. That has a fully different comparison behavior because no sub C<listitem> is created.
+
+Then when they say I<1-alpha10-SNAPSHOT => [1,["alpha",10,["SNAPSHOT"]]]> understand it's wrong. 
+
+C<1-alpha10-SNAPSHOT> is internally reprensented by C<[1,"alpha",10,"SNAPSHOT"]>. That has a fully different comparison behavior because no sub C<listitem> is created.
+
+Please note L<zero appending on nude separator|/zero ('C<0>') appending on nude separator char (dot '.' or dash '-')> has been done before C<listitem> splitting. 
+
+Then :
 
 =head3 Normalization
 
@@ -76,24 +87,44 @@ It appends:
 
 =over 4
 
-=item each time a dash 'C<->' separator is preceded and followed by a digit but B<before> any alias substitution
+=item 1. each time a dash 'C<->' separator is preceded and followed by a digit but B<before> any alias substitution
 
-=item at the end of each parsed C<listitem>, then B<after> all alias substitution
+=item 2. at the end of each parsed C<listitem>, then B<after> all alias substitution
 
 =back
 
-And normalization process the current parsed C<listitem> from its current position when normalization is called, on each encountered C<nullitem> until a non C<nullitem> is encountered or until the begining of this C<listitem>.
+And I<normalization> process the current parsed C<listitem> from its current position when normalization is called, back to the beginning of this C<listitem>.
+
+Each encountered C<nullitem> will be shot until a non C<nullitem> is encountered or until the begining of this C<listitem> is reached if all its items are nullitems. 
+In this last case precisely, the empty C<listitem> will be shot except if it is the main one.
 
 Then understand :
 
-    1.0.alpha.0 becomes (1,0,alpha) #because when the main C<listitem> parsing has ended, normalization has been called. Last item was 0, 0 is the nullitem of integeritem, then it has been shooted. Next last item was alpha that is note a nullitem then normalization process stopped.
-    1.0-final-1 becomes (1,,1) #because 0 preceded a dash and because final has been substituted by '' and the last item is not a C<nullitem>
-    0.0.ga becomes () # because 'ga' has been substituted by '' and when the C<listitem> has been normalized at the end, all items where C<nullitem>s
-    final-0.1 becomes (,0,1) # because normalization has not been called after first dash because it was not been preceded by a digit.
+=over 4
+
+=item * C<1.0.alpha.0> becomes (1,0,alpha) #because when the main C<listitem> parsing has ended, normalization has been called. Last item was 0, 0 is the nullitem of integeritem, then it has been shooted. Next last item was alpha that is note a nullitem then normalization process stopped.
+
+=item * C<1.0-final-1> becomes (1,,1) #because 0 preceded a dash and because final has been substituted by '' and the last item is not a C<nullitem>
+
+=item * C<0.0.ga> becomes () # because 'ga' has been substituted by '' and when the C<listitem> has been normalized at the end, all items where C<nullitem>s
+
+=item * C<final-0.1 becomes> (,0,1) # because normalization has not been called after first dash because it was not been preceded by a digit.
+
+=back
 
 If you told me I<WTF ?>, I would answer I am not responsible of drug consumption...
 
+In C<org.apache.maven.artifact.versioning.ComparableVersion.java>, the representation of normalized version is only displayable with the call of C<org.apache.maven.artifact.versioning.ComparableVersion.ListItem.toString()> private method on the main C<ListItem>.
 
+Comma "C<,>" is used as items separator, and enclosing braces is used to represent C<ListItem>.
+
+For example:
+   in Java world C<org.apache.maven.artifact.versioning.ComparableVersion.ListItem.toString()> on C<"1-0.1"> gives C<"(1,(0,1))">.
+
+L</to_string> method reproduces this behavior for the whole set C<Java::Maven::Artifact::Version>.
+
+    $v = Java::Maven::Artifact::Version->new(version => '1-0.1');
+    $s = $v->to_string(); # $s == '(1,(O,1))'
 
 =cut
 
@@ -396,12 +427,30 @@ sub new {
 
 =head2 to_string 
 
+will return the normalized version representation (see L</"Normalization">)
+
+    $v = Java::Maven::Artifact::Version->new(version => '1.0-final-1');
+    $s = $v->to_string(); # $s == '(1,(,1))'
+
+Then if you want to get the original set version use the C<version> attribute instead :
+
+    $s = $v->{version}; # $s == '1.0-final-1'
+
+And if you want to get the inside version C<listitem> use the C<items> attribute :
+
+    $s = $v->{items}; # $s == [1,['',1]]
+
 =cut
 
 sub to_string {
   my ($this) = @_;
   _to_normalized_string($this->{items});
 }
+
+=head1 Maven version compatibility
+
+This version is fully compatible with the C<org.apache.maven.artifact.versioning.ComparableVersion.java> behavior of C<org.apache.maven:maven-artifact:3.2.2> embedded with Maven 3.2.2
+
 =head1 AUTHOR
 
 Thomas Cazali, C<< <pandragon at cpan.org> >>
@@ -411,9 +460,6 @@ Thomas Cazali, C<< <pandragon at cpan.org> >>
 Please report any bugs or feature requests to C<bug-java-mvn-version at rt.cpan.org>, or through
 the web interface at L<http://rt.cpan.org/NoAuth/ReportBug.html?Queue=Java-Maven-Artifact-Version>.  I will be notified, and then you'll
 automatically be notified of progress on your bug as I make changes.
-
-
-
 
 =head1 SUPPORT
 
@@ -444,9 +490,9 @@ L<http://search.cpan.org/dist/Java-Maven-Artifact-Version/>
 
 =back
 
-
 =head1 ACKNOWLEDGEMENTS
 
+Thanks to Bruno Villegas for his english review.
 
 =head1 LICENSE AND COPYRIGHT
 
