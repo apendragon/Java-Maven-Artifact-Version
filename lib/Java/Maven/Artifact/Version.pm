@@ -298,12 +298,14 @@ sub _split_to_items {
   my @items = ();
   my @tonormalize = _split_to_to_normalize($string);
   #at this time we must replace aliases with their values 
-  foreach my $i (@tonormalize) {
+  my $closure = sub {
+    my ($i) = shift;
     $i = _replace_special_aliases($i); #must be replaced BEFORE items splitting
     my @xs = split(/\-|\./, $i);
     my @xsp = map({ _replace_alias($_) } @xs); #must be replaced after items splitting
     push(@items, @{_normalize(\@xsp)} );
-  }
+  };
+  map { $closure->($_) } @tonormalize;
   @items;
 }
 
@@ -346,17 +348,17 @@ sub _substitute_to_qualifier {
   $qualifier_cmp_values->{_identify_qualifier($stringitem)};
 }
 
+
 sub _to_normalized_string {
   my ($items) = @_;
   my $s = '(';
-  foreach my $i (@$items) {
-    $s .= ',' if ($s ne '('); #TODO fix when first item == '', a ',' must still be appended
-    if (ref($i) eq 'ARRAY') {
-      $s .= _to_normalized_string($i);
-    } else {
-      $s .= "$i";
-    }
-  }
+  my $append = sub {
+    my ($i) = shift; 
+    ref($i) eq 'ARRAY' ? $s .= _to_normalized_string($i) : ($s .= "$i");
+    $s .= ',';
+  };
+  map { $append->($_) } @$items ;
+  chop($s) if (length($s) > 1);
   $s .= ')';
 }
 
