@@ -100,7 +100,7 @@ If you told me I<WTF ?>, I would answer I am not responsible of drug consumption
 use constant {
   _ALPHA        => 'alpha',
   _BETA         => 'beta', 
-  _DEBUG        => 1,
+  _DEBUG        => 0,
   _INTEGER_ITEM => 'integeritem',
   _LIST_ITEM    => 'listitem',
   _MILESTONE    => 'milestone',
@@ -109,6 +109,7 @@ use constant {
   _SNAPSHOT     => 'snapshot',
   _SP           => 'sp',
   _STRING_ITEM  => 'stringitem',
+  _UNDEF        => 'undef'
 };
 
 =head1 SUBROUTINES/METHODS
@@ -127,18 +128,18 @@ sub _getref {
 
 sub _is_nullitem {
   my ($item) = @_;
-  (not defined($item)) ? 1 : 'undef' eq reftype(_getref($item));
+  (not defined($item)) ? 1 : _UNDEF eq reftype(_getref($item));
 }
 
 sub _reftype {
   my ($item) = @_;
-  _is_nullitem($item) ? 'undef' : reftype(_getref($item));
+  _is_nullitem($item) ? _UNDEF : reftype(_getref($item));
 }
 
 sub _identify_item_type {
   my ($item) = @_;
   my $types = {
-    'undef'   => sub { _NULL_ITEM }, 
+    _UNDEF()  => sub { _NULL_ITEM }, 
     'SCALAR'  => sub { _identify_scalar_item_type($item) }, 
     'ARRAY'   => sub { _LIST_ITEM },
     _DEFAULT_ => sub { die "unable to identify item type of item $item ." }
@@ -232,7 +233,7 @@ sub _compare_listitems {
 
 sub _compare_to_mvn_version {
   my ($this, $anotherVersion) = @_;
-  die("parameter is not a Java::Maven::Artifact::Version") if not ($anotherVersion->isa('Java::Maven::Artifact::Version')); 
+  die("parameter is not a Java::Maven::Artifact::Version") unless ($anotherVersion->isa('Java::Maven::Artifact::Version')); 
   _compare_listitems($this->{items}, $anotherVersion->{items});
 }
 
