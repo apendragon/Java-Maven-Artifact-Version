@@ -65,9 +65,9 @@ BEGIN {
   $v = Java::Maven::Artifact::Version->new('1-m1');
   is($v->to_string(), '(1,milestone,1)');
 
-#  #test 15 : null alias start followed by non nullitem
-#  $v = Java::Maven::Artifact::Version->new('final-0.1');
-#  is($v->to_string(), '(,0,1)');
+  #test 15 : null alias start followed by non nullitem
+  $v = Java::Maven::Artifact::Version->new('final-0.1');
+  is($v->to_string(), '(,0,1)');
 
   #test 16 : only nullitems
   $v = Java::Maven::Artifact::Version->new('final.0.0');
