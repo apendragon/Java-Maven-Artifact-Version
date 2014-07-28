@@ -8,21 +8,21 @@ use Java::Maven::Artifact::Version;
 plan tests => 12;
 
 BEGIN {
-  my $v = Java::Maven::Artifact::Version->new('alpha');
+  my $v = Java::Maven::Artifact::Version->new(version => 'alpha');
 
   #test 1 : alpha < beta
   is($v->compare_to('beta'), -1);
   
   #test 2 : beta < milestone
-  $v = Java::Maven::Artifact::Version->new('beta');
+  $v = Java::Maven::Artifact::Version->new(version => 'beta');
   is($v->compare_to('milestone'), -1);
   
   #test 3 : milestone < rc
-  $v = Java::Maven::Artifact::Version->new('milestone');
+  $v = Java::Maven::Artifact::Version->new(version => 'milestone');
   is($v->compare_to('rc'), -1);
   
   #test 4 : rc < ''
-  $v = Java::Maven::Artifact::Version->new('rc');
+  $v = Java::Maven::Artifact::Version->new(version => 'rc');
   is($v->compare_to('ga'), -1);
   
   #test 5 : '' < sp
@@ -30,31 +30,31 @@ BEGIN {
   is($v->compare_to('sp'), -1);
   
   #test 6 : sp < xxx
-  $v = Java::Maven::Artifact::Version->new('sp');
+  $v = Java::Maven::Artifact::Version->new(version => 'sp');
   is($v->compare_to('xxx'), -1);
 
   #test 7 : sp > '' (inversion of test just to check it can return something else of -1)
-  $v = Java::Maven::Artifact::Version->new('sp');
+  $v = Java::Maven::Artifact::Version->new(version => 'sp');
   is($v->compare_to('ga'), 1);
 
   #test 8 : xx < xxx
-  $v = Java::Maven::Artifact::Version->new('xx');
+  $v = Java::Maven::Artifact::Version->new(version => 'xx');
   is($v->compare_to('xxx'), -1);
 
   #test 9 : a < b
-  $v = Java::Maven::Artifact::Version->new('a');
+  $v = Java::Maven::Artifact::Version->new(version => 'a');
   is($v->compare_to('b'), -1);
   
   #test 10 : a < aa
-  $v = Java::Maven::Artifact::Version->new('a');
+  $v = Java::Maven::Artifact::Version->new(version => 'a');
   is($v->compare_to('aa'), -1);
   
   #test 11 : a == a (equality test not done until this one)
-  $v = Java::Maven::Artifact::Version->new('a');
+  $v = Java::Maven::Artifact::Version->new(version => 'a');
   is($v->compare_to('a'), 0);
   
   #test 12 : milestone == milestone (equality test not done until this one on known qualifiers)
-  $v = Java::Maven::Artifact::Version->new('milestone');
+  $v = Java::Maven::Artifact::Version->new(version => 'milestone');
   is($v->compare_to('milestone'), 0);
 }
 

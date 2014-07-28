@@ -4,7 +4,6 @@ use 5.006;
 use strict;
 use warnings FATAL => 'all';
 use Scalar::Util qw/reftype/;
-use Hash::Util qw/lock_value/;
 
 =head1 NAME
 
@@ -128,6 +127,12 @@ L</to_string> method reproduces this behavior for the whole set C<Java::Maven::A
     $v = Java::Maven::Artifact::Version->new(version => '1-0.1');
     $s = $v->to_string(); # $s == '(1,(O,1))'
 
+=head3 listitem and nullitem comparison
+
+It is not very clear in the official Maven doc.
+
+Comparing C<listitem> with C<nullitem> will just compare the first C<item> of the C<listitem> with nullitem.
+
 =cut
 
 use constant {
@@ -145,7 +150,7 @@ use constant {
   _UNDEF        => 'undef'
 };
 
-=head1 SUBROUTINES/METHODS
+=head1 METHODS
 
 =cut
 
@@ -265,9 +270,9 @@ sub _compare_listitems {
 }
 
 sub _compare_to_mvn_version {
-  my ($this, $anotherVersion) = @_;
-  die("parameter is not a Java::Maven::Artifact::Version") unless ($anotherVersion->isa('Java::Maven::Artifact::Version')); 
-  _compare_listitems($this->{items}, $anotherVersion->{items});
+  my ($this, $another_version) = @_;
+  die("parameter is not a Java::Maven::Artifact::Version") unless ($another_version->isa('Java::Maven::Artifact::Version')); 
+  _compare_listitems($this->{items}, $another_version->{items});
 }
 
 sub _compare_stringitem_to {
@@ -327,7 +332,7 @@ sub _split_to_to_normalize {
 
 # replace all following separators ('..', '--', '-.' or '.-') by .0.
 # or replace leading separator by '0.'
-# '-1..1' -> '0.1.0.1'
+# example : '-1..1' -> '0.1.0.1'
 sub _append_zero {
   join '.',  map { $_ eq '' ? '0' : $_  } split /\-|\./, shift;
 }
@@ -406,31 +411,65 @@ sub _to_normalized_string {
 
 =head2 compare_to 
 
+By default C<compare_to> compares this Java::Maven::Artifact::Version instance to another one exacty like maven does.
+
 =cut
+
 sub compare_to {
-  my ($this, $anotherVersion) = @_;
-  if (ref($anotherVersion) eq 'Java::Maven::Artifact::Version') {
-    $this->_compare_to_mvn_version($anotherVersion);
+  my ($this, $another_version) = @_;
+  if (ref($another_version) eq 'Java::Maven::Artifact::Version') {
+    $this->_compare_to_mvn_version($another_version);
   } else {
-    my $other = Java::Maven::Artifact::Version->new($anotherVersion);
+    my $other = Java::Maven::Artifact::Version->new(version => $another_version);
     $this->_compare_to_mvn_version($other);
   }
 }
 
+sub _init {
+  my ($parameters) = @_;
+  my $settings = { 
+    version         => 0,
+    depth           => 0
+  };
+  if (%$parameters) {
+    while ( my ($k, $v) = each %$parameters) {
+      $settings->{$k} = $v if (exists($settings->{$k}));
+    }
+    $settings->{version} = lc($settings->{version}); #TODO use locale.EN
+  }
+  $settings->{items} = _normalize(_split_to_lists($settings->{version}, ()));
+  $settings;
+}
+
 =head2 new
+
+Construct a new Java::Maven::Artifact::Version.
+
+C<version> parameter is mandatory. 
+  
+    my $v = Java::Maven::Artifact::Version->new(version => '1.00');
+
+If it is not, C<version> will be set to '0'
+
+    my $v = Java::Maven::Artifact::Version->new(); 
+    print($v->{version}); # will print '0'
+
+Please note it could take an optional C<depth> parameter :
+    
+    my $v = Java::Maven::Artifact::Version->new(version => '1-1.0-alpha', depth => 3);
+
+The C<depth> parameter will involve a peculiar behavior by default during comparison.
+Please see L</compare_to> method for more details about C<depth>.
+
+B<Warnings> : C<version> and C<items> attributes should not be changed during a Java::Maven::Artifact::Version object lifecycle. It may have side effects. Consider construct a new Java::Maven::Artifact::Version instead.
 
 =cut
 
 sub new {
-  my ($class, $version) = @_;
-  unless ($version) {
-    $version = 0;
-  }
-  $version = lc($version); #TODO use locale.EN
-  my $this = {};
+  my ($class, %parameters) = @_;
+  my $settings = _init(\%parameters);
+  my $this = $settings; 
   bless($this, $class);
-  $this->{version} = $version;
-  $this->{items} = _normalize(_split_to_lists($version, ()));
   $this;
 }
 
@@ -498,10 +537,6 @@ L<http://cpanratings.perl.org/d/Java-Maven-Artifact-Version>
 L<http://search.cpan.org/dist/Java-Maven-Artifact-Version/>
 
 =back
-
-=head1 ACKNOWLEDGEMENTS
-
-Thanks to Bruno Villegas for his english review.
 
 =head1 LICENSE AND COPYRIGHT
 
