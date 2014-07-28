@@ -5,7 +5,6 @@ use strict;
 use warnings FATAL => 'all';
 use Scalar::Util qw/reftype/;
 use Hash::Util qw/lock_value/;
-use Language::Functional;
 
 =head1 NAME
 
@@ -54,8 +53,9 @@ Fortunately this module cares about the real comparison differences hard coded i
 
 =head2 What are differences between real Maven comparison behaviors and those that are described in the official Maven doc ?
 
-=head3 zero ('C<0>') appending on nude separator char (dot '.' or dash '-')
+=head3 zero appending on nude separator 
 
+zero ('C<0>') will be appended on each nude separator char (dot '.' or dash '-')
 During parsing if a separator char is encountered and it was not preceded by a stringitem or a listitem, a zero char ('C<0>') is automatically appended.
 Then a version that begins with a separator is automatically prefixed by zero.
 
@@ -71,9 +71,10 @@ Then when they say I<1-alpha10-SNAPSHOT => [1,["alpha",10,["SNAPSHOT"]]]> unders
 
 C<1-alpha10-SNAPSHOT> is internally reprensented by C<[1,"alpha",10,"SNAPSHOT"]>. That has a fully different comparison behavior because no sub C<listitem> is created.
 
-Please note L<zero appending on nude separator|/zero ('C<0>') appending on nude separator char (dot '.' or dash '-')> has been done before C<listitem> splitting. 
+Please note L</zero appending on nude separator> has been done B<after> C<listitem> splitting. 
 
-Then :
+Then understand 'C<-1--1>' will B<NOT> be internally represented by 'C<(0,(1,(0,(1))>', but by 'C<(0,1,0,1)>'.
+
 
 =head3 Normalization
 
@@ -87,7 +88,8 @@ It appends:
 
 =over 4
 
-=item 1. each time a dash 'C<->' separator is preceded and followed by a digit but B<before> any alias substitution
+=item 1. each time a dash 'C<->' separator is preceded and followed by a digit but B<before> any alias substitution (except when anyone of this digit is a L<zero appended|/zero appending on nude separator>)
+)
 
 =item 2. at the end of each parsed C<listitem>, then B<after> all alias substitution
 
