@@ -420,7 +420,70 @@ sub _to_normalized_string {
 
 =head2 compare_to 
 
-By default C<compare_to> compares this Java::Maven::Artifact::Version instance to another one exacty like maven does.
+By default C<compare_to> compares this Java::Maven::Artifact::Version instance to another one exactly like Maven does.
+
+See L<http://docs.codehaus.org/display/MAVEN/Versioning> for general comparison description, and L</DESCRIPTION> for more details about behaviors that are not described in this official Maven doc but occur during Maven Artifact versions comparison in Java.
+
+This method will return :
+
+=over 4
+
+=item * C<0> if versions compared are equal
+
+=item * C<1> if the version is greater than the version that is compared to
+
+=item * C<-1> if the version is lower than the version that is compared to
+
+=back 
+
+C<compare_to> can compare to another Java::Maven::Artifact::Version
+
+    $v = Java::Maven::Artifact::Version->new(version => '1.0');
+    $o = Java::Maven::Artifact::Version->new(version => '1.1');
+    $x = $v->compare_to($o); # $x == -1
+
+or it can compare directly to a string representing the other version
+
+    $v = Java::Maven::Artifact::Version->new(version => '1.0');
+    $x = $v->compare_to('1.1'); # $x == -1
+
+in this case the other Java::Maven::Artifact::Version will be wrapped in the comparison processing.
+
+C<compare_to> can go more far. You can set C<max_depth> to stop comparison before the whole version comparison has processed.
+
+B<Why> ? 
+
+Suppose you have to code a SCM hook that aims to ensure an artifact pushed on specific branch must always begin by the 2 same version items and the new version must be greater than the old one.
+
+    $old_artifact = Java::Maven::Artifact::Version->new(version => '1.1.12');
+    $new_artifact = Java::Maven::Artifact::Version->new(version => '1.1.13');
+    $common = $old_artifact->compare_to($new_artifact, 2); # returns 0 here
+    die "you did not respect the version policy" if $common; 
+    die "you must increment artifact version" if $old_artifact->compare_to($new_artifact) >= 0;
+
+Note C<max_depth> cares about sub C<listitems>.
+  
+    $v = Java::Maven::Artifact::Version->new(version => '1-1.0.sp'); # normalized to (1,(1,0,'sp'))
+    $o = Java::Maven::Artifact::Version->new(version => '1-1-SNAPSHOT'); # normalized to (1,(1,'SNAPSHOT'))
+    $x = $v->compare_to($o, 3); # 0 will be compared to 'SNAPSHOT' will return 1
+
+Of course understand C<max_depth> computing is done B<after> normalization.
+    
+    $v = Java::Maven::Artifact::Version->new(version => '1-1.0-1-ga-0-1.2'); # normalized to (1,(1,(1,(1,3))))
+    $x = $v->compare_to('1-1.0-1-ga-0-1.3', 4); #only the last item will be ignored during comparison
+    #                    ^ ^   ^      ^             
+
+A default C<max_depth> can be parameterized while new version instantiation
+
+    $v = Java::Maven::Artifact::Version->new(version => '1.1.12', max_depth => 1);
+    $x = $v->compare_to('1'); # $x == 0
+    $x = $v->compare_to('1.1.13', 3); # $x == -1
+    $v->{max_depth} = 0; # reset default version comparison max_depth to no limit
+
+Note set a negative C<max_depth> will always return 0, because no comparison will be done at all
+
+    $v = Java::Maven::Artifact::Version->new(version => '1');
+    $x = $v->compare_to('2', -1); # $x == 0
 
 =cut
 
@@ -473,6 +536,8 @@ The C<max_depth> parameter will involve a peculiar behavior by default during co
 Please see L</compare_to> method for more details about C<max_depth>.
 
 B<Warnings> : C<version> and C<items> attributes should not be changed during a Java::Maven::Artifact::Version object lifecycle. It may have side effects. Consider construct a new Java::Maven::Artifact::Version instead.
+
+The L<zero appending|/zero appending on nude separator>, alias substitutions and L</Normalization> will process during the construction.
 
 =cut
 
