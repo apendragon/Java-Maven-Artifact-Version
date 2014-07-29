@@ -188,10 +188,11 @@ sub _identify_item_type {
 }
 
 sub _compare_integeritem_to {
-  my ($integeritem, $item) = @_;
+  my ($integeritem, $item, $depth) = @_;
   my $dispatch = {
     &_NULL_ITEM    => sub {
       print("comparing $integeritem to nullitem\n") if (_DEBUG); 
+      $$depth++;
       $integeritem =~ m/^0+$/ ? 0 : 1;
     },
     &_LIST_ITEM    => sub {
@@ -200,6 +201,7 @@ sub _compare_integeritem_to {
     },
     &_INTEGER_ITEM => sub {
       print("comparing $integeritem to $item\n") if (_DEBUG); 
+      $$depth++;
       $integeritem <=> $item;
     },
     &_STRING_ITEM  => sub {
@@ -211,34 +213,37 @@ sub _compare_integeritem_to {
 }
 
 sub _compare_items {
-  my ($item1, $item2) = @_;
+  my ($item1, $item2, $max_depth, $depth) = @_;
   my $dispatch = {
     &_NULL_ITEM    => sub {
       print("_compare_items(nullitem, ?)\n") if (_DEBUG); 
-      return 0 unless (defined($item2));
-      _compare_items($item2, undef) * -1;
+      unless (defined($item2)) {
+        $$depth++;
+        return 0 ;
+      }
+      _compare_items($item2, undef, $depth) * -1;
     },
     &_LIST_ITEM    => sub {
       print("_compare_items(listitem, ?)\n") if (_DEBUG); 
-      _compare_listitem_to($item1, $item2);
+      _compare_listitem_to($item1, $item2, $max_depth, $depth);
     },
     &_INTEGER_ITEM => sub {
       print("_compare_items(integeritem, ?)\n") if (_DEBUG);
-      _compare_integeritem_to($item1, $item2);
+      _compare_integeritem_to($item1, $item2, $depth);
     },
     &_STRING_ITEM  => sub {
       print("_compare_items(stringitem, ?)\n") if (_DEBUG);
-      _compare_stringitem_to($item1, $item2);
+      _compare_stringitem_to($item1, $item2, $depth);
     }
   };
   $dispatch->{_identify_item_type($item1)}->();
 }
 
 sub _compare_listitem_to {
-  my ($listitem, $item) = @_;
+  my ($listitem, $item, $max_depth, $depth) = @_;
   my $dispatch = {
-    &_NULL_ITEM    => sub { _compare_listitem_to_nullitem($listitem) },
-    &_LIST_ITEM    => sub { _compare_listitems($listitem, $item) },
+    &_NULL_ITEM    => sub { _compare_listitem_to_nullitem($listitem, $max_depth, $depth) },
+    &_LIST_ITEM    => sub { _compare_listitems($listitem, $item, $max_depth, $depth) },
     &_INTEGER_ITEM => sub { -1 },
     &_STRING_ITEM  => sub { 1 }
   };
@@ -246,48 +251,52 @@ sub _compare_listitem_to {
 }
 
 sub _compare_listitem_to_nullitem {
-  my ($listitem) = @_;
+  my ($listitem, $max_depth, $depth) = @_;
   if (not @$listitem) {
     warn("comparing listitem with empty listitem should never occur. Check your code boy...");
     0; #empty listitem (theoricaly impossible) equals null item
   } else {
     #only compare first element with null item (yes they did that...)
-    _compare_items(@$listitem[0], undef);
+    _compare_items(@$listitem[0], undef, $max_depth, $depth);
   }
 }
 
 sub _compare_listitems {
-  my ($list1, $list2) = @_;
+  my ($list1, $list2, $max_depth, $depth) = @_;
   my @l = @$list1;
   my @r = @$list2;
   while (@l || @r) {
+    last if ($max_depth && $$depth >= $max_depth);
     my $li = @l ? shift(@l) : undef;
     my $ri = @r ? shift(@r) : undef;
-    my $c = defined($li) ? _compare_items($li, $ri) : _compare_items($ri, $li) * -1;
+    my $c = defined($li) ? _compare_items($li, $ri, $max_depth, $depth) : _compare_items($ri, $li, $max_depth, $depth) * -1;
+    print("depth is $$depth\n") if (_DEBUG);
     $c and return $c;
   }
   0;
 }
 
 sub _compare_to_mvn_version {
-  my ($this, $another_version) = @_;
+  my ($this, $another_version, $max_depth) = @_;
   die("parameter is not a Java::Maven::Artifact::Version") unless ($another_version->isa('Java::Maven::Artifact::Version')); 
-  _compare_listitems($this->{items}, $another_version->{items});
+  my $depth = 0;
+  _compare_listitems($this->{items}, $another_version->{items}, $max_depth, \$depth);
 }
 
 sub _compare_stringitem_to {
-  my ($stringitem, $item) = @_;
+  my ($stringitem, $item , $max_depth, $depth) = @_;
   my $dispatch = {
-    &_NULL_ITEM    => sub { _compare_stringitem_to_stringitem($stringitem, $item) },
-    &_LIST_ITEM    => sub { _compare_listitem_to($item, $stringitem) * -1 },
-    &_INTEGER_ITEM => sub { _compare_integeritem_to($item, $stringitem) * -1 },
-    &_STRING_ITEM  => sub { _compare_stringitem_to_stringitem($stringitem, $item) }
+    &_NULL_ITEM    => sub { _compare_stringitem_to_stringitem($stringitem, $item, $depth) },
+    &_LIST_ITEM    => sub { _compare_listitem_to($item, $stringitem, $max_depth, $depth) * -1 },
+    &_INTEGER_ITEM => sub { _compare_integeritem_to($item, $stringitem, $depth) * -1 },
+    &_STRING_ITEM  => sub { _compare_stringitem_to_stringitem($stringitem, $item, $depth) }
   };
   $dispatch->{_identify_item_type($item)}->();
 }
 
 sub _compare_stringitem_to_stringitem {
-  my ($stringitem1, $stringitem2) = @_;
+  my ($stringitem1, $stringitem2, $depth) = @_;
+  $$depth++;
   _substitute_to_qualifier($stringitem1) cmp _substitute_to_qualifier($stringitem2);
 }
 
@@ -416,12 +425,14 @@ By default C<compare_to> compares this Java::Maven::Artifact::Version instance t
 =cut
 
 sub compare_to {
-  my ($this, $another_version) = @_;
+  my ($this, $another_version, $max_depth) = @_;
+  $max_depth = $this->{max_depth} unless defined($max_depth);
+  print("max_depth is $max_depth\n") if _DEBUG;
   if (ref($another_version) eq 'Java::Maven::Artifact::Version') {
-    $this->_compare_to_mvn_version($another_version);
+    $this->_compare_to_mvn_version($another_version, $max_depth);
   } else {
     my $other = Java::Maven::Artifact::Version->new(version => $another_version);
-    $this->_compare_to_mvn_version($other);
+    $this->_compare_to_mvn_version($other, $max_depth);
   }
 }
 
@@ -429,7 +440,7 @@ sub _init {
   my ($parameters) = @_;
   my $settings = { 
     version         => 0,
-    depth           => 0
+    max_depth       => 0
   };
   if (%$parameters) {
     while ( my ($k, $v) = each %$parameters) {
@@ -454,12 +465,12 @@ If it is not, C<version> will be set to '0'
     my $v = Java::Maven::Artifact::Version->new(); 
     print($v->{version}); # will print '0'
 
-Please note it could take an optional C<depth> parameter :
+Please note it could take an optional C<max_depth> parameter :
     
-    my $v = Java::Maven::Artifact::Version->new(version => '1-1.0-alpha', depth => 3);
+    my $v = Java::Maven::Artifact::Version->new(version => '1-1.0-alpha', max_depth => 3);
 
-The C<depth> parameter will involve a peculiar behavior by default during comparison.
-Please see L</compare_to> method for more details about C<depth>.
+The C<max_depth> parameter will involve a peculiar behavior by default during comparison.
+Please see L</compare_to> method for more details about C<max_depth>.
 
 B<Warnings> : C<version> and C<items> attributes should not be changed during a Java::Maven::Artifact::Version object lifecycle. It may have side effects. Consider construct a new Java::Maven::Artifact::Version instead.
 
