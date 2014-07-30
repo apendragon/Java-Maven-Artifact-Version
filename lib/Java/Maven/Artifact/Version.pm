@@ -4,6 +4,7 @@ use 5.006;
 use strict;
 use warnings FATAL => 'all';
 use Scalar::Util qw/reftype/;
+use Carp;
 
 =head1 NAME
 
@@ -487,16 +488,27 @@ Note set a negative C<max_depth> will always return 0, because no comparison wil
 
 =cut
 
+sub _check_comparison_settings {
+  my ($settings) = @_;
+  croak("'version' mandatory parameter is missing") if not exists $settings->{version};
+  carp("'max_depth' should be >= 0") if ($settings->{max_depth} <= 0);
+}
+
+sub _get_other_version {
+  my ($v) = @_;
+  return $v if (ref($v) eq 'Java::Maven::Artifact::Version');
+  return Java::Maven::Artifact::Version->new($v);
+}
+
 sub compare_to {
-  my ($this, $another_version, $max_depth) = @_;
-  $max_depth = $this->{max_depth} unless defined($max_depth);
-  print("max_depth is $max_depth\n") if _DEBUG;
-  if (ref($another_version) eq 'Java::Maven::Artifact::Version') {
-    $this->_compare_to_mvn_version($another_version, $max_depth);
+  my ($this, $settings) = @_;
+  if (ref($settings) eq 'HASH') {
+    _check_comparison_settings($settings);
+    my $max_depth = exists $settings->{max_depth} ? $settings->{max_depth} : $this->{max_depth};
+    $this->_compare_to_mvn_version(_get_other_version($settings->{version}), $max_depth);
   } else {
-    my $other = Java::Maven::Artifact::Version->new(version => $another_version);
-    $this->_compare_to_mvn_version($other, $max_depth);
-  }
+    $this->_compare_to_mvn_version(_get_other_version($settings), $this->{max_depth});
+  } 
 }
 
 sub _init {
