@@ -5,7 +5,7 @@ use warnings FATAL => 'all';
 use Test::More;
 use Java::Maven::Artifact::Version;
 
-plan tests => 7;
+plan tests => 9;
 
 BEGIN {
   my $v = Java::Maven::Artifact::Version->new(version => '1');
@@ -34,6 +34,14 @@ BEGIN {
   #test 7 : integeritem with nullitem - case of equality
   $v = Java::Maven::Artifact::Version->new(version => '1.0.1');
   is($v->compare_to('1..1'), 0); #_replace_alias do the job
+  
+  #test 8 : 0 integeritem lower than 'sp' qualifier
+  $v = Java::Maven::Artifact::Version->new(version => '0');
+  is($v->compare_to('sp'), -1); 
+  
+  #test 9 : 0 integeritem greater than 'SNAPSHOT' qualifier
+  $v = Java::Maven::Artifact::Version->new(version => '1-1.0.sp');
+  is($v->compare_to('1-1-SNAPSHOT'), 1); 
 }
 
 diag( "Testing integer items comparison Java::Maven::Artifact::Version $Java::Maven::Artifact::Version::VERSION feature" );
