@@ -571,13 +571,23 @@ sub to_string {
   _to_normalized_string($this->{items});
 }
 
-=head1 Maven version compatibility
+=head1 MAVEN VERSION COMPATIBILITY
 
 This version is fully compatible with the C<org.apache.maven.artifact.versioning.ComparableVersion.java> behavior of C<org.apache.maven:maven-artifact:3.2.2> embedded with Maven 3.2.2
+
+All L<Test::More|http://search.cpan.org/~exodist/Test-Simple-1.001003/lib/Test/More.pm> tests are also available with Java Junit tests to ensure comparison results are similars.
+
+See L</SOURCE> if you want to check them.
+
+I will do my best to check the Maven compatibility on each Maven new release.
 
 =head1 AUTHOR
 
 Thomas Cazali, C<< <pandragon at cpan.org> >>
+
+=head1 SOURCE
+
+The source code repository for Java::Maven::Artifact::Version can be found at L<https://github.com/pandragon-/java-maven-artifact-version/>
 
 =head1 BUGS
 
@@ -594,11 +604,13 @@ You can find documentation for this module with the perldoc command.
 
 You can also look for information at:
 
+L<https://github.com/pandragon-/java-maven-artifact-version/wiki>
+
 =over 4
 
-=item * RT: CPAN's request tracker (report bugs here)
+=item * github repository issues tracker (report bugs here)
 
-L<http://rt.cpan.org/NoAuth/Bugs.html?Dist=Java-Maven-Artifact-Version>
+L<https://github.com/pandragon-/java-maven-artifact-version/issues>
 
 =item * AnnoCPAN: Annotated CPAN documentation
 
