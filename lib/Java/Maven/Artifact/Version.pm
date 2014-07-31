@@ -4,6 +4,7 @@ use 5.006;
 use strict;
 use warnings FATAL => 'all';
 use Scalar::Util qw/reftype/;
+use Carp;
 
 =head1 NAME
 
@@ -27,12 +28,12 @@ Note that this documentation is intended as a reference to the module.
 
 
     my $com_version = Java::Maven::Artifact::Version->new(version => '1-alpha');
-    my $y = $com_version->compare_to('1-beta'); # $y = -1 
+    my $y = $com_version->compare_to(version => '1-beta'); # $y = -1 
     ...
 
     my $foo_version = Java::Maven::Artifact::Version->new(version => '1.0');
     my $bar_version = Java::Maven::Artifact::Version->new(version => '1-0-alpha');
-    my $x = $bar_version->compare_to($bar_version); # $x = 0
+    my $x = $bar_version->compare_to(version => $bar_version); # $x = 0
     ...
 
     my $baz_version = Java::Maven::Artifact::Version->new(version => '1-1.2-alpha');
@@ -46,7 +47,7 @@ The aim of this module is to exactly reproduce this way in hope that it could be
 
 The official Apache document that describes it is here L<http://docs.codehaus.org/display/MAVEN/Versioning>.
 But don't blindly believe everything. Take the red pill, and I show you how deep the rabbit-hole goes.
-Because there is a gap between the truth coded in C<org.apache.maven.artifact.versioning.ComparableVersion.java> that can be found L<here|https://github.com/apache/maven/blob/master/maven-artifact/src/main/java/org/apache/maven/artifact/versioning/ComparableVersion.java> and that official document.
+Because there is a gap between the truth coded in C<org.apache.maven.artifact.versioning.ComparableVersion.java> that can be found L<here|https://github.com/apache/maven/blob/master/maven-artifact/src/main/java/org/apache/maven/artifact/versioning/ComparableVersion.java> and that Maven official document.
 
 Fortunately this module cares about the real comparison differences hard coded in C<ComparableVersion> and reproduces it.
 
@@ -66,7 +67,7 @@ Then a version that begins with a separator is automatically prefixed by zero.
 
 The dash separator "B<->" will create a C<listitem> only if it is preceeded by an C<integeritem> and it is followed by a digit.
 
-Then when they say I<1-alpha10-SNAPSHOT => [1,["alpha",10,["SNAPSHOT"]]]> understand it's wrong. 
+Then when they say C<1-alpha10-SNAPSHOT =E<gt> [1,["alpha",10,["SNAPSHOT"]]]> understand it's wrong. 
 
 C<1-alpha10-SNAPSHOT> is internally reprensented by C<[1,"alpha",10,"SNAPSHOT"]>. That has a fully different comparison behavior because no sub C<listitem> is created.
 
@@ -87,7 +88,7 @@ It appends:
 
 =over 4
 
-=item 1. each time a dash 'C<->' separator is preceded and followed by a digit but B<before> any alias substitution (except when anyone of this digit is a L<zero appended|/zero appending on nude separator>)
+=item 1. each time a dash 'C<->' separator is preceded and followed by a digit but B<before> any alias substitution (except when anyone of this digit is a L<zero appended|/zero appending on nude separator>, because C<listitem> splitting is done before 'zero appending')
 )
 
 =item 2. at the end of each parsed C<listitem>, then B<after> all alias substitution
@@ -103,11 +104,11 @@ Then understand :
 
 =over 4
 
-=item * C<1.0.alpha.0> becomes (1,0,alpha) #because when the main C<listitem> parsing has ended, normalization has been called. Last item was 0, 0 is the nullitem of integeritem, then it has been shooted. Next last item was alpha that is note a nullitem then normalization process stopped.
+=item * C<1.0.alpha.0> becomes C<(1,0,alpha)> #because when the main C<listitem> parsing has ended, normalization has been called. Last item was 0, 0 is the nullitem of integeritem, then it has been shooted. Next last item was alpha that is not a C<nullitem> then normalization process stopped.
 
-=item * C<1.0-final-1> becomes (1,,1) #because 0 preceded a dash and because final has been substituted by '' and the last item is not a C<nullitem>
+=item * C<1.0-final-1> becomes C<(1,,1)> #because a dash has been encoutered during parsing. Then normalization has been called because it was preceded by a digit and last item in the current C<listitem> is 0. Then it has been shot. C<final> has been substituted by C<''> but when next normalization has been called, at the end of the parsing, the last item was not a C<nullitem>, then normalization did not meet C<''>.
 
-=item * C<0.0.ga> becomes () # because 'ga' has been substituted by '' and when the C<listitem> has been normalized at the end, all items where C<nullitem>s
+=item * C<0.0.ga> becomes C<()> # because 'ga' has been substituted by C<''> and when the C<listitem> has been normalized at the end, all items where C<nullitem>s
 
 =item * C<final-0.1 becomes> (,0,1) # because normalization has not been called after first dash because it was not been preceded by a digit.
 
@@ -131,14 +132,14 @@ L</to_string> method reproduces this behavior for the whole set C<Java::Maven::A
 
 It is not very clear in the official Maven doc.
 
-Comparing C<listitem> with C<nullitem> will just compare the first C<item> of the C<listitem> with nullitem.
+Comparing C<listitem> with C<nullitem> will just compare the first C<item> of the C<listitem> with C<nullitem>.
 
 =cut
 
 use constant {
   _ALPHA        => 'alpha',
   _BETA         => 'beta', 
-  _DEBUG        => 0,
+  _DEBUG        => 1,
   _INTEGER_ITEM => 'integeritem',
   _LIST_ITEM    => 'listitem',
   _MILESTONE    => 'milestone',
@@ -420,7 +421,7 @@ sub _to_normalized_string {
 
 =head2 compare_to 
 
-By default C<compare_to> compares this Java::Maven::Artifact::Version instance to another one exactly like Maven does.
+By default C<compare_to> compares this C<Java::Maven::Artifact::Version> instance to another one exactly like Maven does.
 
 See L<http://docs.codehaus.org/display/MAVEN/Versioning> for general comparison description, and L</DESCRIPTION> for more details about behaviors that are not described in this official Maven doc but occur during Maven Artifact versions comparison in Java.
 
@@ -436,20 +437,20 @@ This method will return :
 
 =back 
 
-C<compare_to> can compare to another Java::Maven::Artifact::Version
+C<compare_to> can compare to another C<Java::Maven::Artifact::Version>
 
     $v = Java::Maven::Artifact::Version->new(version => '1.0');
     $o = Java::Maven::Artifact::Version->new(version => '1.1');
-    $x = $v->compare_to($o); # $x == -1
+    $x = $v->compare_to(version => $o); # $x == -1
 
 or it can compare directly to a string representing the other version
 
     $v = Java::Maven::Artifact::Version->new(version => '1.0');
-    $x = $v->compare_to('1.1'); # $x == -1
+    $x = $v->compare_to(version => '1.1'); # $x == -1
 
-in this case the other Java::Maven::Artifact::Version will be wrapped in the comparison processing.
+in this case the other C<Java::Maven::Artifact::Version> will be wrapped in the comparison processing.
 
-C<compare_to> can go more far. You can set C<max_depth> to stop comparison before the whole version comparison has processed.
+C<compare_to> can go further. You can set C<max_depth> to stop comparison before the whole version comparison has processed.
 
 B<Why> ? 
 
@@ -457,46 +458,52 @@ Suppose you have to code a SCM hook that aims to ensure an artifact pushed on sp
 
     $old_artifact = Java::Maven::Artifact::Version->new(version => '1.1.12');
     $new_artifact = Java::Maven::Artifact::Version->new(version => '1.1.13');
-    $common = $old_artifact->compare_to($new_artifact, 2); # returns 0 here
+    $common = $old_artifact->compare_to(version => $new_artifact, max_depth => 2); # returns 0 here
     die "you did not respect the version policy" if $common; 
-    die "you must increment artifact version" if $old_artifact->compare_to($new_artifact) >= 0;
+    die "you must increment artifact version" if $old_artifact->compare_to(version => $new_artifact) >= 0;
 
 Note C<max_depth> cares about sub C<listitems>.
   
     $v = Java::Maven::Artifact::Version->new(version => '1-1.0.sp'); # normalized to (1,(1,0,'sp'))
     $o = Java::Maven::Artifact::Version->new(version => '1-1-SNAPSHOT'); # normalized to (1,(1,'SNAPSHOT'))
-    $x = $v->compare_to($o, 3); # 0 will be compared to 'SNAPSHOT' will return 1
+    $x = $v->compare_to(version => $o, max_depth => 3); # 0 will be compared to 'SNAPSHOT' will return 1
 
 Of course understand C<max_depth> computing is done B<after> normalization.
     
     $v = Java::Maven::Artifact::Version->new(version => '1-1.0-1-ga-0-1.2'); # normalized to (1,(1,(1,(1,3))))
-    $x = $v->compare_to('1-1.0-1-ga-0-1.3', 4); #only the last item will be ignored during comparison
-    #                    ^ ^   ^      ^             
+    $x = $v->compare_to(version => '1-1.0-1-ga-0-1.3', max_depth => 4); #only the last item will be ignored during this comparison
+    #                               ^ ^   ^      ^             
 
 A default C<max_depth> can be parameterized while new version instantiation
 
     $v = Java::Maven::Artifact::Version->new(version => '1.1.12', max_depth => 1);
-    $x = $v->compare_to('1'); # $x == 0
-    $x = $v->compare_to('1.1.13', 3); # $x == -1
+    $x = $v->compare_to(version => '1'); # $x == 0
+    $x = $v->compare_to(version => '1.1.13', max_depth => 3); # $x == -1
     $v->{max_depth} = 0; # reset default version comparison max_depth to no limit
 
 Note set a negative C<max_depth> will always return 0, because no comparison will be done at all
 
     $v = Java::Maven::Artifact::Version->new(version => '1');
-    $x = $v->compare_to('2', -1); # $x == 0
+    $x = $v->compare_to(version => '2', max_depth => -1); # $x == 0
 
 =cut
 
+sub _check_comparison_settings {
+  my ($settings) = @_;
+  croak("'version' mandatory parameter is missing") if not exists $settings->{version};
+  carp("'max_depth' should be >= 0") if (exists $settings->{max_depth} && $settings->{max_depth} <= 0);
+}
+
+sub _get_version {
+  my ($version) = @_;
+  ref($version) eq 'Java::Maven::Artifact::Version' ? $version : Java::Maven::Artifact::Version->new(version => $version);
+}
+
 sub compare_to {
-  my ($this, $another_version, $max_depth) = @_;
-  $max_depth = $this->{max_depth} unless defined($max_depth);
-  print("max_depth is $max_depth\n") if _DEBUG;
-  if (ref($another_version) eq 'Java::Maven::Artifact::Version') {
-    $this->_compare_to_mvn_version($another_version, $max_depth);
-  } else {
-    my $other = Java::Maven::Artifact::Version->new(version => $another_version);
-    $this->_compare_to_mvn_version($other, $max_depth);
-  }
+  my ($this, %settings) = @_;
+    _check_comparison_settings(\%settings);
+    my $max_depth = exists $settings{max_depth} ? $settings{max_depth} : $this->{max_depth};
+    $this->_compare_to_mvn_version(_get_version($settings{version}), $max_depth);
 }
 
 sub _init {
@@ -517,7 +524,7 @@ sub _init {
 
 =head2 new
 
-Construct a new Java::Maven::Artifact::Version.
+Construct a new C<Java::Maven::Artifact::Version>.
 
 C<version> parameter is mandatory. 
   
@@ -535,7 +542,7 @@ Please note it could take an optional C<max_depth> parameter :
 The C<max_depth> parameter will involve a peculiar behavior by default during comparison.
 Please see L</compare_to> method for more details about C<max_depth>.
 
-B<Warnings> : C<version> and C<items> attributes should not be changed during a Java::Maven::Artifact::Version object lifecycle. It may have side effects. Consider construct a new Java::Maven::Artifact::Version instead.
+B<Warnings> : C<version> and C<items> attributes should not be changed during a C<Java::Maven::Artifact::Version> object lifecycle. It may have side effects. Consider construct a new C<Java::Maven::Artifact::Version> instead.
 
 The L<zero appending|/zero appending on nude separator>, alias substitutions and L</Normalization> will process during the construction.
 
@@ -587,13 +594,11 @@ Thomas Cazali, C<< <pandragon at cpan.org> >>
 
 =head1 SOURCE
 
-The source code repository for Java::Maven::Artifact::Version can be found at L<https://github.com/pandragon-/java-maven-artifact-version/>
+The source code repository for C<Java::Maven::Artifact::Version> can be found at L<https://github.com/pandragon-/java-maven-artifact-version/>
 
 =head1 BUGS
 
-Please report any bugs or feature requests to C<bug-java-mvn-version at rt.cpan.org>, or through
-the web interface at L<http://rt.cpan.org/NoAuth/ReportBug.html?Queue=Java-Maven-Artifact-Version>.  I will be notified, and then you'll
-automatically be notified of progress on your bug as I make changes.
+Please report any bugs or feature requests to L<https://github.com/pandragon-/java-maven-artifact-version/issues>.
 
 =head1 SUPPORT
 
