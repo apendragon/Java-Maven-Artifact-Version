@@ -4,16 +4,17 @@ use 5.006;
 use strict;
 use warnings FATAL => 'all';
 use Scalar::Util qw/reftype/;
-use Hash::Util qw/lock_value/;
-use Language::Functional;
+use Carp;
 
 =head1 NAME
 
-Java::Maven::Artifact::Version - a perl module for comparing Artifact versions like Maven does.
+Java::Maven::Artifact::Version - a perl module for comparing Artifact versions exactly like Maven does.
 
 =head1 VERSION
 
 Version 1.00
+
+see L</Maven version compatibility>.
 
 =cut
 
@@ -25,13 +26,14 @@ Note that this documentation is intended as a reference to the module.
 
     use Java::Maven::Artifact::Version;
 
-    my $foo_version = Java::Maven::Artifact::Version->new(version => '1.0');
-    my $bar_version = Java::Maven::Artifact::Version->new(version => '1-0-alpha');
-    my $x = $bar_version->compare_to($bar_version); # $x = 0
-    ...
 
     my $com_version = Java::Maven::Artifact::Version->new(version => '1-alpha');
-    my $y = $com_version->compare_to('1-beta'); # $y = -1 
+    my $y = $com_version->compare_to(version => '1-beta'); # $y = -1 
+    ...
+
+    my $foo_version = Java::Maven::Artifact::Version->new(version => '1.0');
+    my $bar_version = Java::Maven::Artifact::Version->new(version => '1-0-alpha');
+    my $x = $bar_version->compare_to(version => $bar_version); # $x = 0
     ...
 
     my $baz_version = Java::Maven::Artifact::Version->new(version => '1-1.2-alpha');
@@ -41,80 +43,121 @@ Note that this documentation is intended as a reference to the module.
 =head1 DESCRIPTION
 
 L<Apache Maven|http://maven.apache.org/>  has a peculiar way to compare Artifact versions.
-The aim of this module is to exactly reproduce this way in hope that it could be usefull to write utils like SCM hooks to quickly ensure an Artifact version respect a grow order without to have to install Java and Maven on the system in charge of this checking.
+The aim of this module is to exactly reproduce this way in hope that it could be usefull to someone that wants to write utils like SCM hooks. It may quickly ensure an Artifact version respect a grow order without to have to install Java and Maven on the system in charge of this checking.
 
 The official Apache document that describes it is here L<http://docs.codehaus.org/display/MAVEN/Versioning>.
 But don't blindly believe everything. Take the red pill, and I show you how deep the rabbit-hole goes.
-Because there is a gap between the truth coded in C<org.apache.maven.artifact.versioning.ComparableVersion.java> that can be found L<here|https://github.com/apache/maven/blob/master/maven-artifact/src/main/java/org/apache/maven/artifact/versioning/ComparableVersion.java> and this document.
+Because there is a gap between the truth coded in C<org.apache.maven.artifact.versioning.ComparableVersion.java> that can be found L<here|https://github.com/apache/maven/blob/master/maven-artifact/src/main/java/org/apache/maven/artifact/versioning/ComparableVersion.java> and that Maven official document.
+
+Fortunately this module cares about the real comparison differences hard coded in C<ComparableVersion> and reproduces it.
+
+=head2 What are differences between real Maven comparison behaviors and those that are described in the official Maven doc ?
+
+=head3 zero appending on nude separator 
+
+zero ('C<0>') will be appended on each nude separator char (dot '.' or dash '-')
+During parsing if a separator char is encountered and it was not preceded by a stringitem or a listitem, a zero char ('C<0>') is automatically appended.
+Then a version that begins with a separator is automatically prefixed by zero.
+
+'C<-1>' will be internally moved to 'C<0-1>'.
+
+'C<1....1>' will be internally moved to 'C<1.0.0.0.1>'.
+
+=head3 The dash separator "B<->" 
+
+The dash separator "B<->" will create a C<listitem> only if it is preceeded by an C<integeritem> and it is followed by a digit.
+
+Then when they say C<1-alpha10-SNAPSHOT =E<gt> [1,["alpha",10,["SNAPSHOT"]]]> understand it's wrong. 
+
+C<1-alpha10-SNAPSHOT> is internally reprensented by C<[1,"alpha",10,"SNAPSHOT"]>. That has a fully different comparison behavior because no sub C<listitem> is created.
+
+Please note L</zero appending on nude separator> has been done B<after> C<listitem> splitting. 
+
+Then understand 'C<-1--1>' will B<NOT> be internally represented by 'C<(0,(1,(0,(1))>', but by 'C<(0,1,0,1)>'.
 
 
+=head3 Normalization
 
+Normalization is a very important behavior in version comparisons but it is not described at all in the official Maven document.
+So what is I<normalization> ?
+It's kind of reducing version components function.
+Its aim is to shoot useless version components in an artifact version. To simplify it, understand C<1.0> must be internally represented by C<1> during comparison.
+But I<normalization> appends in specific times during artifact version parsing.
 
+It appends:
 
-TODO say normalize is done when a dash '-' is preceed by a digit, before alias replacement
+=over 4
 
-=head2 NULL_ITEM
+=item 1. each time a dash 'C<->' separator is preceded and followed by a digit but B<before> any alias substitution (except when anyone of this digit is a L<zero appended|/zero appending on nude separator>, because C<listitem> splitting is done before 'zero appending')
+)
 
-=cut
+=item 2. at the end of each parsed C<listitem>, then B<after> all alias substitution
 
-=head2 STRING_ITEM
+=back
 
-=cut
+And I<normalization> process the current parsed C<listitem> from its current position when normalization is called, back to the beginning of this C<listitem>.
 
-=head2 SNAPSHOT
+Each encountered C<nullitem> will be shot until a non C<nullitem> is encountered or until the begining of this C<listitem> is reached if all its items are nullitems. 
+In this last case precisely, the empty C<listitem> will be shot except if it is the main one.
 
-=cut
+Then understand :
 
-=head2 SP
+=over 4
 
-=cut
+=item * C<1.0.alpha.0> becomes C<(1,0,alpha)> #because when the main C<listitem> parsing has ended, normalization has been called. Last item was 0, 0 is the nullitem of integeritem, then it has been shooted. Next last item was alpha that is not a C<nullitem> then normalization process stopped.
 
+=item * C<1.0-final-1> becomes C<(1,,1)> #because a dash has been encoutered during parsing. Then normalization has been called because it was preceded by a digit and last item in the current C<listitem> is 0. Then it has been shot. C<final> has been substituted by C<''> but when next normalization has been called, at the end of the parsing, the last item was not a C<nullitem>, then normalization did not meet C<''>.
 
-=head2 INTEGER_ITEM
+=item * C<0.0.ga> becomes C<()> # because 'ga' has been substituted by C<''> and when the C<listitem> has been normalized at the end, all items where C<nullitem>s
 
-=cut
+=item * C<final-0.1 becomes> (,0,1) # because normalization has not been called after first dash because it was not been preceded by a digit.
 
-=head2 LIST_ITEM
+=back
 
-=cut
+If you told me I<WTF ?>, I would answer I am not responsible of drug consumption...
 
-=head2 ALPHA
+In C<org.apache.maven.artifact.versioning.ComparableVersion.java>, the representation of normalized version is only displayable with the call of C<org.apache.maven.artifact.versioning.ComparableVersion.ListItem.toString()> private method on the main C<ListItem>.
 
-=cut
+Comma "C<,>" is used as items separator, and enclosing braces is used to represent C<ListItem>.
 
-=head2 BETA
-  
-=cut
+For example:
+   in Java world C<org.apache.maven.artifact.versioning.ComparableVersion.ListItem.toString()> on C<"1-0.1"> gives C<"(1,(0,1))">.
 
-=head2 MILESTONE
+L</to_string> method reproduces this behavior for the whole set C<Java::Maven::Artifact::Version>.
 
-=cut
+    $v = Java::Maven::Artifact::Version->new(version => '1-0.1');
+    $s = $v->to_string(); # $s == '(1,(O,1))'
 
-=head2 RC
+=head3 listitem and nullitem comparison
+
+It is not very clear in the official Maven doc.
+
+Comparing C<listitem> with C<nullitem> will just compare the first C<item> of the C<listitem> with C<nullitem>.
 
 =cut
 
 use constant {
-  ALPHA        => 'alpha',
-  BETA         => 'beta', 
-  DEBUG        => 1,
-  INTEGER_ITEM => 'integeritem',
-  LIST_ITEM    => 'listitem',
-  MILESTONE    => 'milestone',
-  NULL_ITEM    => 'nullitem',
-  RC           => 'rc',
-  SNAPSHOT     => 'snapshot',
-  SP           => 'sp',
-  STRING_ITEM  => 'stringitem',
+  _ALPHA        => 'alpha',
+  _BETA         => 'beta', 
+  _DEBUG        => 1,
+  _INTEGER_ITEM => 'integeritem',
+  _LIST_ITEM    => 'listitem',
+  _MILESTONE    => 'milestone',
+  _NULL_ITEM    => 'nullitem',
+  _RC           => 'rc',
+  _SNAPSHOT     => 'snapshot',
+  _SP           => 'sp',
+  _STRING_ITEM  => 'stringitem',
+  _UNDEF        => 'undef'
 };
 
-=head1 SUBROUTINES/METHODS
+=head1 METHODS
 
 =cut
 
 sub _identify_scalar_item_type {
   my ($scalar) = @_;
-  $scalar =~ m/^\d+$/ ? INTEGER_ITEM : STRING_ITEM;
+  $scalar =~ m/^\d+$/ ? _INTEGER_ITEM : _STRING_ITEM;
 }
 
 sub _getref {
@@ -124,44 +167,46 @@ sub _getref {
 
 sub _is_nullitem {
   my ($item) = @_;
-  (not defined($item)) ? 1 : 'undef' eq reftype(_getref($item));
+  (not defined($item)) ? 1 : _UNDEF eq reftype(_getref($item));
 }
 
 sub _reftype {
   my ($item) = @_;
-  _is_nullitem($item) ? 'undef' : reftype(_getref($item));
+  _is_nullitem($item) ? _UNDEF : reftype(_getref($item));
 }
 
 sub _identify_item_type {
   my ($item) = @_;
   my $types = {
-    'undef'   => sub { NULL_ITEM }, 
+    _UNDEF()  => sub { _NULL_ITEM }, 
     'SCALAR'  => sub { _identify_scalar_item_type($item) }, 
-    'ARRAY'   => sub { LIST_ITEM },
+    'ARRAY'   => sub { _LIST_ITEM },
     _DEFAULT_ => sub { die "unable to identify item type of item $item ." }
   };
   my $t = _reftype($item);  
-  print("_identify_item_type($t)\n") if (DEBUG);
+  print("_identify_item_type($t)\n") if (_DEBUG);
   exists $types->{$t} ? $types->{$t}->() : $types->{_DEFAULT_}->();
 }
 
 sub _compare_integeritem_to {
-  my ($integeritem, $item) = @_;
+  my ($integeritem, $item, $depth) = @_;
   my $dispatch = {
-    &NULL_ITEM    => sub {
-      print("comparing $integeritem to nullitem\n") if (DEBUG); 
+    &_NULL_ITEM    => sub {
+      print("comparing $integeritem to nullitem\n") if (_DEBUG); 
+      $$depth++;
       $integeritem =~ m/^0+$/ ? 0 : 1;
     },
-    &LIST_ITEM    => sub {
-      print("comparing $integeritem to listitem\n") if (DEBUG); 
+    &_LIST_ITEM    => sub {
+      print("comparing $integeritem to listitem\n") if (_DEBUG); 
       1;
     },
-    &INTEGER_ITEM => sub {
-      print("comparing $integeritem to $item\n") if (DEBUG); 
+    &_INTEGER_ITEM => sub {
+      print("comparing $integeritem to $item\n") if (_DEBUG); 
+      $$depth++;
       $integeritem <=> $item;
     },
-    &STRING_ITEM  => sub {
-      print("comparing $integeritem to stringitem\n") if (DEBUG); 
+    &_STRING_ITEM  => sub {
+      print("comparing $integeritem to stringitem\n") if (_DEBUG); 
       1;
     }
   };
@@ -169,83 +214,90 @@ sub _compare_integeritem_to {
 }
 
 sub _compare_items {
-  my ($item1, $item2) = @_;
+  my ($item1, $item2, $max_depth, $depth) = @_;
   my $dispatch = {
-    &NULL_ITEM    => sub {
-      print("_compare_items(nullitem, ?)\n") if (DEBUG); 
-      return 0 unless (defined($item2));
-      _compare_items($item2, undef) * -1;
+    &_NULL_ITEM    => sub {
+      print("_compare_items(nullitem, ?)\n") if (_DEBUG); 
+      unless (defined($item2)) {
+        $$depth++;
+        return 0 ;
+      }
+      _compare_items($item2, undef, $depth) * -1;
     },
-    &LIST_ITEM    => sub {
-      print("_compare_items(listitem, ?)\n") if (DEBUG); 
-      _compare_listitem_to($item1, $item2);
+    &_LIST_ITEM    => sub {
+      print("_compare_items(listitem, ?)\n") if (_DEBUG); 
+      _compare_listitem_to($item1, $item2, $max_depth, $depth);
     },
-    &INTEGER_ITEM => sub {
-      print("_compare_items(integeritem, ?)\n") if (DEBUG);
-      _compare_integeritem_to($item1, $item2);
+    &_INTEGER_ITEM => sub {
+      print("_compare_items(integeritem, ?)\n") if (_DEBUG);
+      _compare_integeritem_to($item1, $item2, $depth);
     },
-    &STRING_ITEM  => sub {
-      print("_compare_items(stringitem, ?)\n") if (DEBUG);
-      _compare_stringitem_to($item1, $item2);
+    &_STRING_ITEM  => sub {
+      print("_compare_items(stringitem, ?)\n") if (_DEBUG);
+      _compare_stringitem_to($item1, $item2, $depth);
     }
   };
   $dispatch->{_identify_item_type($item1)}->();
 }
 
 sub _compare_listitem_to {
-  my ($listitem, $item) = @_;
+  my ($listitem, $item, $max_depth, $depth) = @_;
   my $dispatch = {
-    &NULL_ITEM    => sub { _compare_listitem_to_nullitem($listitem) },
-    &LIST_ITEM    => sub { _compare_listitems($listitem, $item) },
-    &INTEGER_ITEM => sub { -1 },
-    &STRING_ITEM  => sub { 1 }
+    &_NULL_ITEM    => sub { _compare_listitem_to_nullitem($listitem, $max_depth, $depth) },
+    &_LIST_ITEM    => sub { _compare_listitems($listitem, $item, $max_depth, $depth) },
+    &_INTEGER_ITEM => sub { -1 },
+    &_STRING_ITEM  => sub { 1 }
   };
   $dispatch->{_identify_item_type($item)}->();
 }
 
 sub _compare_listitem_to_nullitem {
-  my ($listitem) = @_;
+  my ($listitem, $max_depth, $depth) = @_;
   if (not @$listitem) {
     warn("comparing listitem with empty listitem should never occur. Check your code boy...");
     0; #empty listitem (theoricaly impossible) equals null item
   } else {
     #only compare first element with null item (yes they did that...)
-    _compare_items(@$listitem[0], undef);
+    _compare_items(@$listitem[0], undef, $max_depth, $depth);
   }
 }
 
 sub _compare_listitems {
-  my ($list1, $list2) = @_;
+  my ($list1, $list2, $max_depth, $depth) = @_;
   my @l = @$list1;
   my @r = @$list2;
   while (@l || @r) {
+    last if ($max_depth && $$depth >= $max_depth);
     my $li = @l ? shift(@l) : undef;
     my $ri = @r ? shift(@r) : undef;
-    my $c = defined($li) ? _compare_items($li, $ri) : _compare_items($ri, $li) * -1;
+    my $c = defined($li) ? _compare_items($li, $ri, $max_depth, $depth) : _compare_items($ri, $li, $max_depth, $depth) * -1;
+    print("depth is $$depth\n") if (_DEBUG);
     $c and return $c;
   }
   0;
 }
 
 sub _compare_to_mvn_version {
-  my ($this, $anotherVersion) = @_;
-  die("parameter is not a Java::Maven::Artifact::Version") if not ($anotherVersion->isa('Java::Maven::Artifact::Version')); 
-  _compare_listitems($this->{items}, $anotherVersion->{items});
+  my ($this, $another_version, $max_depth) = @_;
+  die("parameter is not a Java::Maven::Artifact::Version") unless ($another_version->isa('Java::Maven::Artifact::Version')); 
+  my $depth = 0;
+  _compare_listitems($this->{items}, $another_version->{items}, $max_depth, \$depth);
 }
 
 sub _compare_stringitem_to {
-  my ($stringitem, $item) = @_;
+  my ($stringitem, $item , $max_depth, $depth) = @_;
   my $dispatch = {
-    &NULL_ITEM    => sub { _compare_stringitem_to_stringitem($stringitem, $item) },
-    &LIST_ITEM    => sub { _compare_listitem_to($item, $stringitem) * -1 },
-    &INTEGER_ITEM => sub { _compare_integeritem_to($item, $stringitem) * -1 },
-    &STRING_ITEM  => sub { _compare_stringitem_to_stringitem($stringitem, $item) }
+    &_NULL_ITEM    => sub { _compare_stringitem_to_stringitem($stringitem, $item, $depth) },
+    &_LIST_ITEM    => sub { _compare_listitem_to($item, $stringitem, $max_depth, $depth) * -1 },
+    &_INTEGER_ITEM => sub { _compare_integeritem_to($item, $stringitem, $depth) * -1 },
+    &_STRING_ITEM  => sub { _compare_stringitem_to_stringitem($stringitem, $item, $depth) }
   };
   $dispatch->{_identify_item_type($item)}->();
 }
 
 sub _compare_stringitem_to_stringitem {
-  my ($stringitem1, $stringitem2) = @_;
+  my ($stringitem1, $stringitem2, $depth) = @_;
+  $$depth++;
   _substitute_to_qualifier($stringitem1) cmp _substitute_to_qualifier($stringitem2);
 }
 
@@ -288,6 +340,13 @@ sub _split_to_to_normalize {
   split('</version>', $string);
 }
 
+# replace all following separators ('..', '--', '-.' or '.-') by .0.
+# or replace leading separator by '0.'
+# example : '-1..1' -> '0.1.0.1'
+sub _append_zero {
+  join '.',  map { $_ eq '' ? '0' : $_  } split /\-|\./, shift;
+}
+
 # _split_to_items must only be called when version has been splitted into listitems
 # Then it works only on a single listitem
 sub _split_to_items {
@@ -295,12 +354,15 @@ sub _split_to_items {
   my @items = ();
   my @tonormalize = _split_to_to_normalize($string);
   #at this time we must replace aliases with their values 
-  foreach my $i (@tonormalize) {
+  my $closure = sub {
+    my ($i) = shift;
+    $i = _append_zero($i);
     $i = _replace_special_aliases($i); #must be replaced BEFORE items splitting
     my @xs = split(/\-|\./, $i);
     my @xsp = map({ _replace_alias($_) } @xs); #must be replaced after items splitting
     push(@items, @{_normalize(\@xsp)} );
-  }
+  };
+  map { $closure->($_) } @tonormalize;
   @items;
 }
 
@@ -317,78 +379,197 @@ sub _split_to_lists {
 
 sub _identify_qualifier {
   my ($stringitem) = @_;
-  return NULL_ITEM unless defined($stringitem);
-  return ALPHA     if $stringitem =~ m/^(alpha|a\d+)$/;
-  return BETA      if $stringitem =~ m/^(beta|b\d+)$/;
-  return MILESTONE if $stringitem =~ m/^(milestone|m\d+)$/;
-  return RC        if $stringitem =~ m/^rc$/;
-  return SNAPSHOT  if $stringitem =~ m/^snapshot$/;
-  return NULL_ITEM if $stringitem =~ m/^$/;
-  return SP        if $stringitem =~ m/^sp$/;
+  return _NULL_ITEM unless defined($stringitem);
+  return _ALPHA     if $stringitem =~ m/^(alpha|a\d+)$/;
+  return _BETA      if $stringitem =~ m/^(beta|b\d+)$/;
+  return _MILESTONE if $stringitem =~ m/^(milestone|m\d+)$/;
+  return _RC        if $stringitem =~ m/^rc$/;
+  return _SNAPSHOT  if $stringitem =~ m/^snapshot$/;
+  return _NULL_ITEM if $stringitem =~ m/^$/;
+  return _SP        if $stringitem =~ m/^sp$/;
   '_DEFAULT_';
 }
 
 sub _substitute_to_qualifier {
   my ($stringitem) = @_;
   my $qualifier_cmp_values = {
-    &ALPHA     => '0',
-    &BETA      => '1',
-    &MILESTONE => '2',
-    &RC        => '3',
-    &SNAPSHOT  => '4',
-    &NULL_ITEM => '5',
-    &SP        => '6',
+    &_ALPHA     => '0',
+    &_BETA      => '1',
+    &_MILESTONE => '2',
+    &_RC        => '3',
+    &_SNAPSHOT  => '4',
+    &_NULL_ITEM => '5',
+    &_SP        => '6',
     _DEFAULT_  => $stringitem ? "7-$stringitem" : '7-' #yes they really did that in ComparableVersion...
   };
   $qualifier_cmp_values->{_identify_qualifier($stringitem)};
 }
 
+
 sub _to_normalized_string {
   my ($items) = @_;
   my $s = '(';
-  foreach my $i (@$items) {
-    $s .= ',' if ($s ne '(');
-    if (ref($i) eq 'ARRAY') {
-      $s .= _to_normalized_string($i);
-    } else {
-      $s .= "$i";
-    }
-  }
+  my $append = sub {
+    my ($i) = shift; 
+    ref($i) eq 'ARRAY' ? $s .= _to_normalized_string($i) : ($s .= "$i");
+    $s .= ',';
+  };
+  map { $append->($_) } @$items ;
+  chop($s) if (length($s) > 1);
   $s .= ')';
 }
 
 =head2 compare_to 
 
+By default C<compare_to> compares this C<Java::Maven::Artifact::Version> instance to another one exactly like Maven does.
+
+See L<http://docs.codehaus.org/display/MAVEN/Versioning> for general comparison description, and L</DESCRIPTION> for more details about behaviors that are not described in this official Maven doc but occur during Maven Artifact versions comparison in Java.
+
+This method will return :
+
+=over 4
+
+=item * C<0> if versions compared are equal
+
+=item * C<1> if the version is greater than the version that is compared to
+
+=item * C<-1> if the version is lower than the version that is compared to
+
+=back 
+
+C<compare_to> can compare to another C<Java::Maven::Artifact::Version>
+
+    $v = Java::Maven::Artifact::Version->new(version => '1.0');
+    $o = Java::Maven::Artifact::Version->new(version => '1.1');
+    $x = $v->compare_to(version => $o); # $x == -1
+
+or it can compare directly to a string representing the other version
+
+    $v = Java::Maven::Artifact::Version->new(version => '1.0');
+    $x = $v->compare_to(version => '1.1'); # $x == -1
+
+in this case the other C<Java::Maven::Artifact::Version> will be wrapped in the comparison processing.
+
+C<compare_to> can go further. You can set C<max_depth> to stop comparison before the whole version comparison has processed.
+
+B<Why> ? 
+
+Suppose you have to code a SCM hook that aims to ensure an artifact pushed on specific branch must always begin by the 2 same version items and the new version must be greater than the old one.
+
+    $old_artifact = Java::Maven::Artifact::Version->new(version => '1.1.12');
+    $new_artifact = Java::Maven::Artifact::Version->new(version => '1.1.13');
+    $common = $old_artifact->compare_to(version => $new_artifact, max_depth => 2); # returns 0 here
+    die "you did not respect the version policy" if $common; 
+    die "you must increment artifact version" if $old_artifact->compare_to(version => $new_artifact) >= 0;
+
+Note C<max_depth> cares about sub C<listitems>.
+  
+    $v = Java::Maven::Artifact::Version->new(version => '1-1.0.sp'); # normalized to (1,(1,0,'sp'))
+    $o = Java::Maven::Artifact::Version->new(version => '1-1-SNAPSHOT'); # normalized to (1,(1,'SNAPSHOT'))
+    $x = $v->compare_to(version => $o, max_depth => 3); # 0 will be compared to 'SNAPSHOT' will return 1
+
+Of course understand C<max_depth> computing is done B<after> normalization.
+    
+    $v = Java::Maven::Artifact::Version->new(version => '1-1.0-1-ga-0-1.2'); # normalized to (1,(1,(1,(1,3))))
+    $x = $v->compare_to(version => '1-1.0-1-ga-0-1.3', max_depth => 4); #only the last item will be ignored during this comparison
+    #                               ^ ^   ^      ^             
+
+A default C<max_depth> can be parameterized while new version instantiation
+
+    $v = Java::Maven::Artifact::Version->new(version => '1.1.12', max_depth => 1);
+    $x = $v->compare_to(version => '1'); # $x == 0
+    $x = $v->compare_to(version => '1.1.13', max_depth => 3); # $x == -1
+    $v->{max_depth} = 0; # reset default version comparison max_depth to no limit
+
+Note set a negative C<max_depth> will always return 0, because no comparison will be done at all
+
+    $v = Java::Maven::Artifact::Version->new(version => '1');
+    $x = $v->compare_to(version => '2', max_depth => -1); # $x == 0
+
 =cut
+
+sub _check_comparison_settings {
+  my ($settings) = @_;
+  croak("'version' mandatory parameter is missing") if not exists $settings->{version};
+  carp("'max_depth' should be >= 0") if (exists $settings->{max_depth} && $settings->{max_depth} <= 0);
+}
+
+sub _get_version {
+  my ($version) = @_;
+  ref($version) eq 'Java::Maven::Artifact::Version' ? $version : Java::Maven::Artifact::Version->new(version => $version);
+}
+
 sub compare_to {
-  my ($this, $anotherVersion) = @_;
-  if (ref($anotherVersion) eq 'Java::Maven::Artifact::Version') {
-    $this->_compare_to_mvn_version($anotherVersion);
-  } else {
-    my $other = Java::Maven::Artifact::Version->new($anotherVersion);
-    $this->_compare_to_mvn_version($other);
+  my ($this, %settings) = @_;
+    _check_comparison_settings(\%settings);
+    my $max_depth = exists $settings{max_depth} ? $settings{max_depth} : $this->{max_depth};
+    $this->_compare_to_mvn_version(_get_version($settings{version}), $max_depth);
+}
+
+sub _init {
+  my ($parameters) = @_;
+  my $settings = { 
+    version         => 0,
+    max_depth       => 0
+  };
+  if (%$parameters) {
+    while ( my ($k, $v) = each %$parameters) {
+      $settings->{$k} = $v if (exists($settings->{$k}));
+    }
+    $settings->{version} = lc($settings->{version}); #TODO use locale.EN
   }
+  $settings->{items} = _normalize(_split_to_lists($settings->{version}, ()));
+  $settings;
 }
 
 =head2 new
 
+Construct a new C<Java::Maven::Artifact::Version>.
+
+C<version> parameter is mandatory. 
+  
+    my $v = Java::Maven::Artifact::Version->new(version => '1.00');
+
+If it is not, C<version> will be set to '0'
+
+    my $v = Java::Maven::Artifact::Version->new(); 
+    print($v->{version}); # will print '0'
+
+Please note it could take an optional C<max_depth> parameter :
+    
+    my $v = Java::Maven::Artifact::Version->new(version => '1-1.0-alpha', max_depth => 3);
+
+The C<max_depth> parameter will involve a peculiar behavior by default during comparison.
+Please see L</compare_to> method for more details about C<max_depth>.
+
+B<Warnings> : C<version> and C<items> attributes should not be changed during a C<Java::Maven::Artifact::Version> object lifecycle. It may have side effects. Consider construct a new C<Java::Maven::Artifact::Version> instead.
+
+The L<zero appending|/zero appending on nude separator>, alias substitutions and L</Normalization> will process during the construction.
+
 =cut
 
 sub new {
-  my ($class, $version) = @_;
-  unless ($version) {
-    $version = 0;
-  }
-  $version =~ s/^(\-|\.)/0$1/; #add leading zero when starts by dash or dot
-  $version = lc($version); #TODO use locale.EN
-  my $this = {};
+  my ($class, %parameters) = @_;
+  my $settings = _init(\%parameters);
+  my $this = $settings; 
   bless($this, $class);
-  $this->{version} = $version;
-  $this->{items} = _normalize(_split_to_lists($version, ()));
   $this;
 }
 
 =head2 to_string 
+
+will return the normalized version representation (see L</"Normalization">)
+
+    $v = Java::Maven::Artifact::Version->new(version => '1.0-final-1');
+    $s = $v->to_string(); # $s == '(1,(,1))'
+
+Then if you want to get the original set version use the C<version> attribute instead :
+
+    $s = $v->{version}; # $s == '1.0-final-1'
+
+And if you want to get the inside version C<listitem> use the C<items> attribute :
+
+    $s = $v->{items}; # $s == [1,['',1]]
 
 =cut
 
@@ -396,18 +577,28 @@ sub to_string {
   my ($this) = @_;
   _to_normalized_string($this->{items});
 }
+
+=head1 MAVEN VERSION COMPATIBILITY
+
+This version is fully compatible with the C<org.apache.maven.artifact.versioning.ComparableVersion.java> behavior of C<org.apache.maven:maven-artifact:3.2.2> embedded with Maven 3.2.2
+
+All L<Test::More|http://search.cpan.org/~exodist/Test-Simple-1.001003/lib/Test/More.pm> tests are also available with Java Junit tests to ensure comparison results are similars.
+
+See L</SOURCE> if you want to check them.
+
+I will do my best to check the Maven compatibility on each Maven new release.
+
 =head1 AUTHOR
 
 Thomas Cazali, C<< <pandragon at cpan.org> >>
 
+=head1 SOURCE
+
+The source code repository for C<Java::Maven::Artifact::Version> can be found at L<https://github.com/pandragon-/java-maven-artifact-version/>
+
 =head1 BUGS
 
-Please report any bugs or feature requests to C<bug-java-mvn-version at rt.cpan.org>, or through
-the web interface at L<http://rt.cpan.org/NoAuth/ReportBug.html?Queue=Java-Maven-Artifact-Version>.  I will be notified, and then you'll
-automatically be notified of progress on your bug as I make changes.
-
-
-
+Please report any bugs or feature requests to L<https://github.com/pandragon-/java-maven-artifact-version/issues>.
 
 =head1 SUPPORT
 
@@ -418,11 +609,13 @@ You can find documentation for this module with the perldoc command.
 
 You can also look for information at:
 
+L<https://github.com/pandragon-/java-maven-artifact-version/wiki>
+
 =over 4
 
-=item * RT: CPAN's request tracker (report bugs here)
+=item * github repository issues tracker (report bugs here)
 
-L<http://rt.cpan.org/NoAuth/Bugs.html?Dist=Java-Maven-Artifact-Version>
+L<https://github.com/pandragon-/java-maven-artifact-version/issues>
 
 =item * AnnoCPAN: Annotated CPAN documentation
 
@@ -437,10 +630,6 @@ L<http://cpanratings.perl.org/d/Java-Maven-Artifact-Version>
 L<http://search.cpan.org/dist/Java-Maven-Artifact-Version/>
 
 =back
-
-
-=head1 ACKNOWLEDGEMENTS
-
 
 =head1 LICENSE AND COPYRIGHT
 

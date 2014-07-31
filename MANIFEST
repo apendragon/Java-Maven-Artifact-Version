@@ -9,6 +9,7 @@ t/02-qualifiers-comparison.t
 t/03-integeritems-comparison.t
 t/04-stringitems-comparison.t
 t/05-listitems-comparison.t
+t/06-parameterized-depth-comparison.t
 t/manifest.t
 t/pod-coverage.t
 t/pod.t
