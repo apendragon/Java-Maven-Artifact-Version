@@ -11,14 +11,14 @@ BEGIN {
   my $v = Java::Maven::Artifact::Version->new(version => '1-xxxxx');
 
   #test 1 : integer item is greater
-  is($v->compare_to('1.1'), -1);
+  is($v->compare_to(version => '1.1'), -1);
 
   #test 2 : listitem is greater
-  is($v->compare_to('1-0.1'), -1);
+  is($v->compare_to(version => '1-0.1'), -1);
 
   #test 3 : nullitem is equal when qualifier is '' or alias
   $v = Java::Maven::Artifact::Version->new(version => '1-ga');
-  is($v->compare_to('1'), 0); #normalization do the job
+  is($v->compare_to(version => '1'), 0); #normalization do the job
   
   #stringitem with stringitem comparisons have already been tested in t/02-qualifiers-comparison.t
 }
