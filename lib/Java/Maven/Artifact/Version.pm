@@ -49,15 +49,15 @@ The official Apache document that describes it is here L<http://docs.codehaus.or
 But don't blindly believe everything. Take the red pill, and I show you how deep the rabbit-hole goes.
 Because there is a gap between the truth coded in C<org.apache.maven.artifact.versioning.ComparableVersion.java> that can be found L<here|https://github.com/apache/maven/blob/master/maven-artifact/src/main/java/org/apache/maven/artifact/versioning/ComparableVersion.java> and that Maven official document.
 
-Fortunately this module cares about the real comparison differences hard coded in C<ComparableVersion> and reproduces it.
+Lucky for you this module cares about the real comparison differences hard coded in C<ComparableVersion> and reproduces it.
 
-=head2 What are differences between real Maven comparison behaviors and those that are described in the official Maven doc ?
+=head2 What are differences between actual Maven comparison algo and that described in the official Maven doc ?
 
-=head3 zero appending on nude separator 
+=head3 zero appending on blank separator 
 
-zero ('C<0>') will be appended on each nude separator char (dot '.' or dash '-')
-During parsing if a separator char is encountered and it was not preceded by a stringitem or a listitem, a zero char ('C<0>') is automatically appended.
-Then a version that begins with a separator is automatically prefixed by zero.
+zero ('C<0>') will be appended on each blank separator char (dot '.' or dash '-')
+During parsing if separator char is encountered and it was not preceded by C<stringitem> or C<listitem>, zero char ('C<0>') is automatically appended.
+Then version that begins with separator is automatically prefixed by zero.
 
 'C<-1>' will be internally moved to 'C<0-1>'.
 
@@ -65,52 +65,52 @@ Then a version that begins with a separator is automatically prefixed by zero.
 
 =head3 The dash separator "B<->" 
 
-The dash separator "B<->" will create a C<listitem> only if it is preceeded by an C<integeritem> and it is followed by a digit.
+The dash separator "B<->" will create C<listitem> only if it is preceeded by an C<integeritem> and it is followed by digit.
 
-Then when they say C<1-alpha10-SNAPSHOT =E<gt> [1,["alpha",10,["SNAPSHOT"]]]> understand it's wrong. 
+Then when they say C<1-alpha10-SNAPSHOT =E<gt> [1,["alpha",10,["SNAPSHOT"]]]> understand that it's wrong. 
 
-C<1-alpha10-SNAPSHOT> is internally reprensented by C<[1,"alpha",10,"SNAPSHOT"]>. That has a fully different comparison behavior because no sub C<listitem> is created.
+C<1-alpha10-SNAPSHOT> is internally represented by C<[1,"alpha",10,"SNAPSHOT"]>. Which has a fully different comparison behavior because no sub C<listitem> is created.
 
-Please note L</zero appending on nude separator> has been done B<after> C<listitem> splitting. 
+Please note that L</zero appending on blank separator> has been done B<after> C<listitem> splitting. 
 
-Then understand 'C<-1--1>' will B<NOT> be internally represented by 'C<(0,(1,(0,(1))>', but by 'C<(0,1,0,1)>'.
+Then understand that 'C<-1--1>' will B<NOT> be internally represented by 'C<(0,(1,(0,(1))>', but by 'C<(0,1,0,1)>'.
 
 
 =head3 Normalization
 
-Normalization is a very important behavior in version comparisons but it is not described at all in the official Maven document.
+Normalization is one of the most important part of version comparison but it is not described at all in the official Maven document.
 So what is I<normalization> ?
 It's kind of reducing version components function.
-Its aim is to shoot useless version components in an artifact version. To simplify it, understand C<1.0> must be internally represented by C<1> during comparison.
+Its aim is to shoot useless version components in artifact version. To simplify it, understand that C<1.0> must be internally represented by C<1> during comparison.
 But I<normalization> appends in specific times during artifact version parsing.
 
 It appends:
 
 =over 4
 
-=item 1. each time a dash 'C<->' separator is preceded and followed by a digit but B<before> any alias substitution (except when anyone of this digit is a L<zero appended|/zero appending on nude separator>, because C<listitem> splitting is done before 'zero appending')
-)
+=item 1. each time a dash 'C<->' separator is preceded by digit but B<before> any alias substitution (except when any of these digits is a L<zero appended|/zero appending on blank separator>, because C<listitem> splitting is done before 'zero appending').
+
 
 =item 2. at the end of each parsed C<listitem>, then B<after> all alias substitution
 
 =back
 
-And I<normalization> process the current parsed C<listitem> from its current position when normalization is called, back to the beginning of this C<listitem>.
+And I<normalization> process current parsed C<listitem> from current position when normalization is called, back to the beginning of this current C<listitem>.
 
 Each encountered C<nullitem> will be shot until a non C<nullitem> is encountered or until the begining of this C<listitem> is reached if all its items are nullitems. 
 In this last case precisely, the empty C<listitem> will be shot except if it is the main one.
 
-Then understand :
+Then understand that :
 
 =over 4
 
-=item * C<1.0.alpha.0> becomes C<(1,0,alpha)> #because when the main C<listitem> parsing has ended, normalization has been called. Last item was 0, 0 is the nullitem of integeritem, then it has been shooted. Next last item was alpha that is not a C<nullitem> then normalization process stopped.
+=item * C<1.0.alpha.0> becomes C<(1,0,alpha)> #because when main C<listitem> parsing has ended, I<normalization> has been called. Last item was 0, 0 is the C<nullitem> of C<integeritem>, then it has been shooted. Next last item was C<alpha> that is not C<nullitem> then normalization process stopped.
 
-=item * C<1.0-final-1> becomes C<(1,,1)> #because a dash has been encoutered during parsing. Then normalization has been called because it was preceded by a digit and last item in the current C<listitem> is 0. Then it has been shot. C<final> has been substituted by C<''> but when next normalization has been called, at the end of the parsing, the last item was not a C<nullitem>, then normalization did not meet C<''>.
+=item * C<1.0-final-1> becomes C<(1,,1)> #because a dash has been encoutered during parsing. Then normalization has been called because it was preceded by a digit and last item in the current C<listitem> is 0. Then it has been shot. C<final> has been substituted by C<''> but when next normalization has been called, at the end of the parsing, the last item was not C<nullitem>, then normalization did not meet C<''>.
 
-=item * C<0.0.ga> becomes C<()> # because 'ga' has been substituted by C<''> and when the C<listitem> has been normalized at the end, all items where C<nullitem>s
+=item * C<0.0.ga> becomes C<()> # because 'ga' has been substituted by C<''> and when C<listitem> has been normalized at the end, all items where C<nullitem>s
 
-=item * C<final-0.1 becomes> (,0,1) # because normalization has not been called after first dash because it was not been preceded by a digit.
+=item * C<final-0.1 becomes> (,0,1) # because normalization has not been called after first dash because it was not been preceded by digit.
 
 =back
 
@@ -118,12 +118,12 @@ If you told me I<WTF ?>, I would answer I am not responsible of drug consumption
 
 In C<org.apache.maven.artifact.versioning.ComparableVersion.java>, the representation of normalized version is only displayable with the call of C<org.apache.maven.artifact.versioning.ComparableVersion.ListItem.toString()> private method on the main C<ListItem>.
 
-Comma "C<,>" is used as items separator, and enclosing braces is used to represent C<ListItem>.
+Comma "C<,>" is used as items separator, and enclosing braces are used to represent C<ListItem>.
 
 For example:
    in Java world C<org.apache.maven.artifact.versioning.ComparableVersion.ListItem.toString()> on C<"1-0.1"> gives C<"(1,(0,1))">.
 
-L</to_string> method reproduces this behavior for the whole set C<Java::Maven::Artifact::Version>.
+L</to_string> method reproduces this algo for the whole set C<Java::Maven::Artifact::Version>.
 
     $v = Java::Maven::Artifact::Version->new(version => '1-0.1');
     $s = $v->to_string(); # $s == '(1,(O,1))'
@@ -132,7 +132,7 @@ L</to_string> method reproduces this behavior for the whole set C<Java::Maven::A
 
 It is not very clear in the official Maven doc.
 
-Comparing C<listitem> with C<nullitem> will just compare the first C<item> of the C<listitem> with C<nullitem>.
+Comparing C<listitem> with C<nullitem> will just compare first C<item> of the C<listitem> with C<nullitem>.
 
 =cut
 
@@ -423,7 +423,7 @@ sub _to_normalized_string {
 
 By default C<compare_to> compares this C<Java::Maven::Artifact::Version> instance to another one exactly like Maven does.
 
-See L<http://docs.codehaus.org/display/MAVEN/Versioning> for general comparison description, and L</DESCRIPTION> for more details about behaviors that are not described in this official Maven doc but occur during Maven Artifact versions comparison in Java.
+See L<http://docs.codehaus.org/display/MAVEN/Versioning> for general comparison description, and L</DESCRIPTION> for more details about mechanisms not described in that official Maven doc but occur during Maven Artifact versions comparison in Java.
 
 This method will return :
 
@@ -431,9 +431,9 @@ This method will return :
 
 =item * C<0> if versions compared are equal
 
-=item * C<1> if the version is greater than the version that is compared to
+=item * C<1> if version is greater than version that is compared to
 
-=item * C<-1> if the version is lower than the version that is compared to
+=item * C<-1> if version is lower than version that is compared to
 
 =back 
 
@@ -441,12 +441,12 @@ C<compare_to> can compare to another C<Java::Maven::Artifact::Version>
 
     $v = Java::Maven::Artifact::Version->new(version => '1.0');
     $o = Java::Maven::Artifact::Version->new(version => '1.1');
-    $x = $v->compare_to(version => $o); # $x == -1
+    $x = $v->compare_to(version => $o); # $x = -1
 
 or it can compare directly to a string representing the other version
 
     $v = Java::Maven::Artifact::Version->new(version => '1.0');
-    $x = $v->compare_to(version => '1.1'); # $x == -1
+    $x = $v->compare_to(version => '1.1'); # $x = -1
 
 in this case the other C<Java::Maven::Artifact::Version> will be wrapped in the comparison processing.
 
@@ -454,7 +454,7 @@ C<compare_to> can go further. You can set C<max_depth> to stop comparison before
 
 B<Why> ? 
 
-Suppose you have to code a SCM hook that aims to ensure an artifact pushed on specific branch must always begin by the 2 same version items and the new version must be greater than the old one.
+Suppose you have to code SCM hook which enforce that pushed artifact source must always begin by the same two version items and new version must be greater than the old one.
 
     $old_artifact = Java::Maven::Artifact::Version->new(version => '1.1.12');
     $new_artifact = Java::Maven::Artifact::Version->new(version => '1.1.13');
@@ -462,29 +462,29 @@ Suppose you have to code a SCM hook that aims to ensure an artifact pushed on sp
     die "you did not respect the version policy" if $common; 
     die "you must increment artifact version" if $old_artifact->compare_to(version => $new_artifact) >= 0;
 
-Note C<max_depth> cares about sub C<listitems>.
+Note that C<max_depth> cares about sub C<listitems>.
   
     $v = Java::Maven::Artifact::Version->new(version => '1-1.0.sp'); # normalized to (1,(1,0,'sp'))
     $o = Java::Maven::Artifact::Version->new(version => '1-1-SNAPSHOT'); # normalized to (1,(1,'SNAPSHOT'))
     $x = $v->compare_to(version => $o, max_depth => 3); # 0 will be compared to 'SNAPSHOT' will return 1
 
-Of course understand C<max_depth> computing is done B<after> normalization.
+Of course understand that this computation is done B<after> normalization.
     
     $v = Java::Maven::Artifact::Version->new(version => '1-1.0-1-ga-0-1.2'); # normalized to (1,(1,(1,(1,3))))
-    $x = $v->compare_to(version => '1-1.0-1-ga-0-1.3', max_depth => 4); #only the last item will be ignored during this comparison
+    $x = $v->compare_to(version => '1-1.0-1-ga-0-1.3', max_depth => 4); #only last item will be ignored during this comparison
     #                               ^ ^   ^      ^             
 
 A default C<max_depth> can be parameterized while new version instantiation
 
     $v = Java::Maven::Artifact::Version->new(version => '1.1.12', max_depth => 1);
-    $x = $v->compare_to(version => '1'); # $x == 0
-    $x = $v->compare_to(version => '1.1.13', max_depth => 3); # $x == -1
+    $x = $v->compare_to(version => '1'); # $x = 0
+    $x = $v->compare_to(version => '1.1.13', max_depth => 3); # $x = -1
     $v->{max_depth} = 0; # reset default version comparison max_depth to no limit
 
-Note set a negative C<max_depth> will always return 0, because no comparison will be done at all
+Note that set negative C<max_depth> will always return 0, because no comparison will be done at all
 
     $v = Java::Maven::Artifact::Version->new(version => '1');
-    $x = $v->compare_to(version => '2', max_depth => -1); # $x == 0
+    $x = $v->compare_to(version => '2', max_depth => -1); # $x = 0
 
 =cut
 
@@ -524,27 +524,27 @@ sub _init {
 
 =head2 new
 
-Construct a new C<Java::Maven::Artifact::Version>.
+Construct new C<Java::Maven::Artifact::Version>.
 
 C<version> parameter is mandatory. 
   
     my $v = Java::Maven::Artifact::Version->new(version => '1.00');
 
-If it is not, C<version> will be set to '0'
+If not set, C<version> will be '0'
 
     my $v = Java::Maven::Artifact::Version->new(); 
     print($v->{version}); # will print '0'
 
-Please note it could take an optional C<max_depth> parameter :
+Please note that it could take an optional C<max_depth> parameter :
     
     my $v = Java::Maven::Artifact::Version->new(version => '1-1.0-alpha', max_depth => 3);
 
-The C<max_depth> parameter will involve a peculiar behavior by default during comparison.
+The C<max_depth> parameter will involve a peculiar mechanism by default during comparison.
 Please see L</compare_to> method for more details about C<max_depth>.
 
-B<Warnings> : C<version> and C<items> attributes should not be changed during a C<Java::Maven::Artifact::Version> object lifecycle. It may have side effects. Consider construct a new C<Java::Maven::Artifact::Version> instead.
+B<Warnings> : C<version> and C<items> attributes should not be changed during C<Java::Maven::Artifact::Version> object lifecycle. It may have side effects. Consider construct new C<Java::Maven::Artifact::Version> instead.
 
-The L<zero appending|/zero appending on nude separator>, alias substitutions and L</Normalization> will process during the construction.
+The L<zero appending|/zero appending on blank separator>, alias substitutions and L</Normalization> will be processed during construction.
 
 =cut
 
@@ -558,18 +558,18 @@ sub new {
 
 =head2 to_string 
 
-will return the normalized version representation (see L</"Normalization">)
+will return normalized version representation (see L</"Normalization">)
 
     $v = Java::Maven::Artifact::Version->new(version => '1.0-final-1');
-    $s = $v->to_string(); # $s == '(1,(,1))'
+    $s = $v->to_string(); # $s = '(1,(,1))'
 
 Then if you want to get the original set version use the C<version> attribute instead :
 
-    $s = $v->{version}; # $s == '1.0-final-1'
+    $s = $v->{version}; # $s = '1.0-final-1'
 
 And if you want to get the inside version C<listitem> use the C<items> attribute :
 
-    $s = $v->{items}; # $s == [1,['',1]]
+    $s = $v->{items}; # $s = [1,['',1]]
 
 =cut
 
@@ -580,7 +580,7 @@ sub to_string {
 
 =head1 MAVEN VERSION COMPATIBILITY
 
-This version is fully compatible with the C<org.apache.maven.artifact.versioning.ComparableVersion.java> behavior of C<org.apache.maven:maven-artifact:3.2.2> embedded with Maven 3.2.2
+This version is fully compatible with the C<org.apache.maven.artifact.versioning.ComparableVersion.java> algo of C<org.apache.maven:maven-artifact:3.2.2> embedded with Maven 3.2.2
 
 All L<Test::More|http://search.cpan.org/~exodist/Test-Simple-1.001003/lib/Test/More.pm> tests are also available with Java Junit tests to ensure comparison results are similars.
 
