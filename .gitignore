@@ -16,3 +16,5 @@ pod2htm*.tmp
 pm_to_blib
 Java-Maven-Artifact-Version-*
 Java-Maven-Artifact-Version-*.tar.gz
+**/target/
+**.swp
