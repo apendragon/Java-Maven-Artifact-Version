@@ -14,7 +14,7 @@ Java::Maven::Artifact::Version - a perl module for comparing Artifact versions e
 
 Version 1.00
 
-see L</Maven version compatibility>.
+see L</MAVEN VERSION COMPATIBILITY>.
 
 =cut
 
