@@ -139,7 +139,7 @@ Comparing C<listitem> with C<nullitem> will just compare first C<item> of the C<
 use constant {
   _ALPHA        => 'alpha',
   _BETA         => 'beta', 
-  _DEBUG        => 1,
+  _DEBUG        => 0,
   _INTEGER_ITEM => 'integeritem',
   _LIST_ITEM    => 'listitem',
   _MILESTONE    => 'milestone',
