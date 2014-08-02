@@ -594,11 +594,11 @@ Thomas Cazali, C<< <pandragon at cpan.org> >>
 
 =head1 SOURCE
 
-The source code repository for C<Java::Maven::Artifact::Version> can be found at L<https://github.com/pandragon-/java-maven-artifact-version/>
+The source code repository for C<Java::Maven::Artifact::Version> can be found at L<https://github.com/pandragon-/Java-Maven-Artifact-Version/>
 
 =head1 BUGS
 
-Please report any bugs or feature requests to L<https://github.com/pandragon-/java-maven-artifact-version/issues>.
+Please report any bugs or feature requests to L<https://github.com/pandragon-/Java-Maven-Artifact-Version/issues>.
 
 =head1 SUPPORT
 
@@ -609,13 +609,13 @@ You can find documentation for this module with the perldoc command.
 
 You can also look for information at:
 
-L<https://github.com/pandragon-/java-maven-artifact-version/wiki>
+L<https://github.com/pandragon-/Java-Maven-Artifact-Version/wiki>
 
 =over 4
 
 =item * github repository issues tracker (report bugs here)
 
-L<https://github.com/pandragon-/java-maven-artifact-version/issues>
+L<https://github.com/pandragon-/Java-Maven-Artifact-Version/issues>
 
 =item * AnnoCPAN: Annotated CPAN documentation
 
