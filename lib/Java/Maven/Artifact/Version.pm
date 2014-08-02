@@ -155,37 +155,17 @@ use constant {
 
 =cut
 
-sub _identify_scalar_item_type {
-  my ($scalar) = @_;
-  $scalar =~ m/^\d+$/ ? _INTEGER_ITEM : _STRING_ITEM;
+# replace all following separators ('..', '--', '-.' or '.-') by .0.
+# or replace leading separator by '0.'
+# example : '-1..1' -> '0.1.0.1'
+sub _append_zero {
+  join '.',  map { $_ eq '' ? '0' : $_  } split /\-|\./, shift;
 }
 
-sub _getref {
-  my ($var) = @_;
-  (ref($var) || not defined($var)) ? $var : \$var; # var may already be a ref
-}
-
-sub _is_nullitem {
-  my ($item) = @_;
-  (not defined($item)) ? 1 : _UNDEF eq reftype(_getref($item));
-}
-
-sub _reftype {
-  my ($item) = @_;
-  _is_nullitem($item) ? _UNDEF : reftype(_getref($item));
-}
-
-sub _identify_item_type {
-  my ($item) = @_;
-  my $types = {
-    _UNDEF()  => sub { _NULL_ITEM }, 
-    'SCALAR'  => sub { _identify_scalar_item_type($item) }, 
-    'ARRAY'   => sub { _LIST_ITEM },
-    _DEFAULT_ => sub { die "unable to identify item type of item $item ." }
-  };
-  my $t = _reftype($item);  
-  print("_identify_item_type($t)\n") if (_DEBUG);
-  exists $types->{$t} ? $types->{$t}->() : $types->{_DEFAULT_}->();
+sub _check_comparison_settings {
+  my ($settings) = @_;
+  croak("'version' mandatory parameter is missing") if not exists $settings->{version};
+  carp("'max_depth' should be >= 0") if (exists $settings->{max_depth} && $settings->{max_depth} <= 0);
 }
 
 sub _compare_integeritem_to {
@@ -277,13 +257,6 @@ sub _compare_listitems {
   0;
 }
 
-sub _compare_to_mvn_version {
-  my ($this, $another_version, $max_depth) = @_;
-  die("parameter is not a Java::Maven::Artifact::Version") unless ($another_version->isa('Java::Maven::Artifact::Version')); 
-  my $depth = 0;
-  _compare_listitems($this->{items}, $another_version->{items}, $max_depth, \$depth);
-}
-
 sub _compare_stringitem_to {
   my ($stringitem, $item , $max_depth, $depth) = @_;
   my $dispatch = {
@@ -301,6 +274,75 @@ sub _compare_stringitem_to_stringitem {
   _substitute_to_qualifier($stringitem1) cmp _substitute_to_qualifier($stringitem2);
 }
 
+sub _compare_to_mvn_version {
+  my ($this, $another_version, $max_depth) = @_;
+  die("parameter is not a Java::Maven::Artifact::Version") unless ($another_version->isa('Java::Maven::Artifact::Version')); 
+  my $depth = 0;
+  _compare_listitems($this->{items}, $another_version->{items}, $max_depth, \$depth);
+}
+
+sub _get_version {
+  my ($version) = @_;
+  ref($version) eq 'Java::Maven::Artifact::Version' ? $version : Java::Maven::Artifact::Version->new(version => $version);
+}
+
+sub _getref {
+  my ($var) = @_;
+  (ref($var) || not defined($var)) ? $var : \$var; # var may already be a ref
+}
+
+sub _identify_item_type {
+  my ($item) = @_;
+  my $types = {
+    _UNDEF()  => sub { _NULL_ITEM }, 
+    'SCALAR'  => sub { _identify_scalar_item_type($item) }, 
+    'ARRAY'   => sub { _LIST_ITEM },
+    _DEFAULT_ => sub { die "unable to identify item type of item $item ." }
+  };
+  my $t = _reftype($item);  
+  print("_identify_item_type($t)\n") if (_DEBUG);
+  exists $types->{$t} ? $types->{$t}->() : $types->{_DEFAULT_}->();
+}
+
+sub _identify_qualifier {
+  my ($stringitem) = @_;
+  return _NULL_ITEM unless defined($stringitem);
+  return _ALPHA     if $stringitem =~ m/^(alpha|a\d+)$/;
+  return _BETA      if $stringitem =~ m/^(beta|b\d+)$/;
+  return _MILESTONE if $stringitem =~ m/^(milestone|m\d+)$/;
+  return _RC        if $stringitem =~ m/^rc$/;
+  return _SNAPSHOT  if $stringitem =~ m/^snapshot$/;
+  return _NULL_ITEM if $stringitem =~ m/^$/;
+  return _SP        if $stringitem =~ m/^sp$/;
+  '_DEFAULT_';
+}
+
+sub _identify_scalar_item_type {
+  my ($scalar) = @_;
+  $scalar =~ m/^\d+$/ ? _INTEGER_ITEM : _STRING_ITEM;
+}
+
+sub _init {
+  my ($parameters) = @_;
+  my $settings = { 
+    version         => 0,
+    max_depth       => 0
+  };
+  if (%$parameters) {
+    while ( my ($k, $v) = each %$parameters) {
+      $settings->{$k} = $v if (exists($settings->{$k}));
+    }
+    $settings->{version} = lc($settings->{version}); #TODO use locale.EN
+  }
+  $settings->{items} = _normalize(_split_to_lists($settings->{version}, ()));
+  $settings;
+}
+
+sub _is_nullitem {
+  my ($item) = @_;
+  (not defined($item)) ? 1 : _UNDEF eq reftype(_getref($item));
+}
+
 sub _normalize {
   my ($listitems) = @_;
   my $norm_sublist;
@@ -313,12 +355,9 @@ sub _normalize {
   $listitems;
 }
 
-sub _replace_special_aliases {
-  my ($string) = @_;
-  $string =~ s/((?:^)|(?:\.|\-))a(\d)/$1alpha.$2/g; # a1 = alpha.1
-  $string =~ s/((?:^)|(?:\.|\-))b(\d)/$1beta.$2/g; # b11 = beta.11
-  $string =~ s/((?:^)|(?:\.|\-))m(\d)/$1milestone.$2/g; # m7 = milestone.7
-  $string;
+sub _reftype {
+  my ($item) = @_;
+  _is_nullitem($item) ? _UNDEF : reftype(_getref($item));
 }
 
 sub _replace_alias {
@@ -333,18 +372,12 @@ sub _replace_alias {
   $string;
 }
 
-#_normalize must be called each time a digit is followed by a dash
-sub _split_to_to_normalize {
+sub _replace_special_aliases {
   my ($string) = @_;
-  $string =~ s#(\d)\-#$1</version>#g; # use '</version>' as seperator because it cannot be a part of an artifact version...
-  split('</version>', $string);
-}
-
-# replace all following separators ('..', '--', '-.' or '.-') by .0.
-# or replace leading separator by '0.'
-# example : '-1..1' -> '0.1.0.1'
-sub _append_zero {
-  join '.',  map { $_ eq '' ? '0' : $_  } split /\-|\./, shift;
+  $string =~ s/((?:^)|(?:\.|\-))a(\d)/$1alpha.$2/g; # a1 = alpha.1
+  $string =~ s/((?:^)|(?:\.|\-))b(\d)/$1beta.$2/g; # b11 = beta.11
+  $string =~ s/((?:^)|(?:\.|\-))m(\d)/$1milestone.$2/g; # m7 = milestone.7
+  $string;
 }
 
 # _split_to_items must only be called when version has been splitted into listitems
@@ -377,17 +410,11 @@ sub _split_to_lists {
   \@items;
 }
 
-sub _identify_qualifier {
-  my ($stringitem) = @_;
-  return _NULL_ITEM unless defined($stringitem);
-  return _ALPHA     if $stringitem =~ m/^(alpha|a\d+)$/;
-  return _BETA      if $stringitem =~ m/^(beta|b\d+)$/;
-  return _MILESTONE if $stringitem =~ m/^(milestone|m\d+)$/;
-  return _RC        if $stringitem =~ m/^rc$/;
-  return _SNAPSHOT  if $stringitem =~ m/^snapshot$/;
-  return _NULL_ITEM if $stringitem =~ m/^$/;
-  return _SP        if $stringitem =~ m/^sp$/;
-  '_DEFAULT_';
+#_normalize must be called each time a digit is followed by a dash
+sub _split_to_to_normalize {
+  my ($string) = @_;
+  $string =~ s#(\d)\-#$1</version>#g; # use '</version>' as seperator because it cannot be a part of an artifact version...
+  split('</version>', $string);
 }
 
 sub _substitute_to_qualifier {
@@ -488,38 +515,11 @@ Note that set negative C<max_depth> will always return 0, because no comparison 
 
 =cut
 
-sub _check_comparison_settings {
-  my ($settings) = @_;
-  croak("'version' mandatory parameter is missing") if not exists $settings->{version};
-  carp("'max_depth' should be >= 0") if (exists $settings->{max_depth} && $settings->{max_depth} <= 0);
-}
-
-sub _get_version {
-  my ($version) = @_;
-  ref($version) eq 'Java::Maven::Artifact::Version' ? $version : Java::Maven::Artifact::Version->new(version => $version);
-}
-
 sub compare_to {
   my ($this, %settings) = @_;
     _check_comparison_settings(\%settings);
     my $max_depth = exists $settings{max_depth} ? $settings{max_depth} : $this->{max_depth};
     $this->_compare_to_mvn_version(_get_version($settings{version}), $max_depth);
-}
-
-sub _init {
-  my ($parameters) = @_;
-  my $settings = { 
-    version         => 0,
-    max_depth       => 0
-  };
-  if (%$parameters) {
-    while ( my ($k, $v) = each %$parameters) {
-      $settings->{$k} = $v if (exists($settings->{$k}));
-    }
-    $settings->{version} = lc($settings->{version}); #TODO use locale.EN
-  }
-  $settings->{items} = _normalize(_split_to_lists($settings->{version}, ()));
-  $settings;
 }
 
 =head2 new
