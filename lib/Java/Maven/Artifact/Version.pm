@@ -3,9 +3,12 @@ package Java::Maven::Artifact::Version;
 use 5.006;
 use strict;
 use warnings FATAL => 'all';
+use Exporter;
 use Scalar::Util qw/reftype/;
 use Carp;
 
+our @ISA = qw/Exporter/;
+our @EXPORT_OK = qw/&version_parse &version_compare/;
 =head1 NAME
 
 Java::Maven::Artifact::Version - a perl module for comparing Artifact versions exactly like Maven does.
@@ -24,21 +27,13 @@ our $VERSION = '1.00';
 
 Note that this documentation is intended as a reference to the module.
 
-    use Java::Maven::Artifact::Version;
+    use Java::Maven::Artifact::Version qw/version_compare version_parse/;
 
+    my $y = version_compare('1-alpha', '1-beta'); # $y = -1 
+    my $x = version_compare('1.0', '1-0.alpha'); # $x = 0
 
-    my $com_version = Java::Maven::Artifact::Version->new(version => '1-alpha');
-    my $y = $com_version->compare_to(version => '1-beta'); # $y = -1 
-    ...
-
-    my $foo_version = Java::Maven::Artifact::Version->new(version => '1.0');
-    my $bar_version = Java::Maven::Artifact::Version->new(version => '1-0-alpha');
-    my $x = $bar_version->compare_to(version => $bar_version); # $x = 0
-    ...
-
-    my $baz_version = Java::Maven::Artifact::Version->new(version => '1-1.2-alpha');
-    my $z = $baz_version->to_string(); # $z = '(1,(1,2,alpha))' 
-    ...
+    my $z = version_parse('1-1.2-alpha'); # $z = '(1,(1,2,alpha))' 
+    my @l = version_parse('1-1.2-alpha'); # [1,[1,2,'alpha']]
 
 =head1 DESCRIPTION
 
@@ -97,7 +92,7 @@ It appends:
 
 And I<normalization> process current parsed C<listitem> from current position when normalization is called, back to the beginning of this current C<listitem>.
 
-Each encountered C<nullitem> will be shot until a non C<nullitem> is encountered or until the begining of this C<listitem> is reached if all its items are nullitems. 
+Each encountered C<nullitem> will be shot until a non C<nullitem> is encountered or until the begining of this C<listitem> is reached if all its items are C<nullitems>. 
 In this last case precisely, the empty C<listitem> will be shot except if it is the main one.
 
 Then understand that :
@@ -123,10 +118,9 @@ Comma "C<,>" is used as items separator, and enclosing braces are used to repres
 For example:
    in Java world C<org.apache.maven.artifact.versioning.ComparableVersion.ListItem.toString()> on C<"1-0.1"> gives C<"(1,(0,1))">.
 
-L</to_string> method reproduces this algo for the whole set C<Java::Maven::Artifact::Version>.
+L</version_parse> function reproduces this algo for the whole set C<Java::Maven::Artifact::Version>.
 
-    $v = Java::Maven::Artifact::Version->new(version => '1-0.1');
-    $s = $v->to_string(); # $s == '(1,(O,1))'
+    $v = version_parse('1-0.1'); # $v = '(1,(O,1))'
 
 =head3 listitem and nullitem comparison
 
@@ -151,7 +145,7 @@ use constant {
   _UNDEF        => 'undef'
 };
 
-=head1 METHODS
+=head1 SUBROUTINES
 
 =cut
 
@@ -322,22 +316,6 @@ sub _identify_scalar_item_type {
   $scalar =~ m/^\d+$/ ? _INTEGER_ITEM : _STRING_ITEM;
 }
 
-sub _init {
-  my ($parameters) = @_;
-  my $settings = { 
-    version         => 0,
-    max_depth       => 0
-  };
-  if (%$parameters) {
-    while ( my ($k, $v) = each %$parameters) {
-      $settings->{$k} = $v if (exists($settings->{$k}));
-    }
-    $settings->{version} = lc($settings->{version}); #TODO use locale.EN
-  }
-  $settings->{items} = _normalize(_split_to_lists($settings->{version}, ()));
-  $settings;
-}
-
 sub _is_nullitem {
   my ($item) = @_;
   (not defined($item)) ? 1 : _UNDEF eq reftype(_getref($item));
@@ -446,13 +424,13 @@ sub _to_normalized_string {
   $s .= ')';
 }
 
-=head2 compare_to 
+=head2 version_compare
 
-By default C<compare_to> compares this C<Java::Maven::Artifact::Version> instance to another one exactly like Maven does.
+By default C<version_compare> compares a version string to another one exactly like Maven does.
 
 See L<http://docs.codehaus.org/display/MAVEN/Versioning> for general comparison description, and L</DESCRIPTION> for more details about mechanisms not described in that official Maven doc but occur during Maven Artifact versions comparison in Java.
 
-This method will return :
+This function will return :
 
 =over 4
 
@@ -464,119 +442,69 @@ This method will return :
 
 =back 
 
-C<compare_to> can compare to another C<Java::Maven::Artifact::Version>
+    $v = version_compare('1.0', '1.1'); # $v = -1
 
-    $v = Java::Maven::Artifact::Version->new(version => '1.0');
-    $o = Java::Maven::Artifact::Version->new(version => '1.1');
-    $x = $v->compare_to(version => $o); # $x = -1
-
-or it can compare directly to a string representing the other version
-
-    $v = Java::Maven::Artifact::Version->new(version => '1.0');
-    $x = $v->compare_to(version => '1.1'); # $x = -1
-
-in this case the other C<Java::Maven::Artifact::Version> will be wrapped in the comparison processing.
-
-C<compare_to> can go further. You can set C<max_depth> to stop comparison before the whole version comparison has processed.
+C<version_compare> can go further. You can set C<max_depth> to stop comparison before the whole version comparison has processed.
 
 B<Why> ? 
 
 Suppose you have to code SCM hook which enforce that pushed artifact source must always begin by the same two version items and new version must be greater than the old one.
 
-    $old_artifact = Java::Maven::Artifact::Version->new(version => '1.1.12');
-    $new_artifact = Java::Maven::Artifact::Version->new(version => '1.1.13');
-    $common = $old_artifact->compare_to(version => $new_artifact, max_depth => 2); # returns 0 here
+    my ($old, $new) = ('1.1.12', '1.1.13');
+    my $common = version_compare($old, $new, 2); # returns 0 here
     die "you did not respect the version policy" if $common; 
-    die "you must increment artifact version" if $old_artifact->compare_to(version => $new_artifact) >= 0;
+    die "you must increment artifact version" if version_compare($old, $new) >= 0;
 
 Note that C<max_depth> cares about sub C<listitems>.
   
-    $v = Java::Maven::Artifact::Version->new(version => '1-1.0.sp'); # normalized to (1,(1,0,'sp'))
-    $o = Java::Maven::Artifact::Version->new(version => '1-1-SNAPSHOT'); # normalized to (1,(1,'SNAPSHOT'))
-    $x = $v->compare_to(version => $o, max_depth => 3); # 0 will be compared to 'SNAPSHOT' will return 1
+    $v = '1-1.0.sp; # normalized to (1,(1,0,'sp'))
+    $o = '1-1-SNAPSHOT'; # normalized to (1,(1,'SNAPSHOT'))
+    $x = version_compare($v, $o, 3); # will compare '0' to 'SNAPSHOT' and will return 1
 
 Of course understand that this computation is done B<after> normalization.
     
-    $v = Java::Maven::Artifact::Version->new(version => '1-1.0-1-ga-0-1.2'); # normalized to (1,(1,(1,(1,3))))
-    $x = $v->compare_to(version => '1-1.0-1-ga-0-1.3', max_depth => 4); #only last item will be ignored during this comparison
-    #                               ^ ^   ^      ^             
-
-A default C<max_depth> can be parameterized while new version instantiation
-
-    $v = Java::Maven::Artifact::Version->new(version => '1.1.12', max_depth => 1);
-    $x = $v->compare_to(version => '1'); # $x = 0
-    $x = $v->compare_to(version => '1.1.13', max_depth => 3); # $x = -1
-    $v->{max_depth} = 0; # reset default version comparison max_depth to no limit
+    $x = version_compare('1-1.0-1-ga-0-1.2', '1-1.0-1-ga-0-1.3', 4); #only last item will be ignored during this comparison
+    #                     ^ ^   ^      ^      ^ ^   ^      ^
 
 Note that set negative C<max_depth> will always return 0, because no comparison will be done at all
 
-    $v = Java::Maven::Artifact::Version->new(version => '1');
-    $x = $v->compare_to(version => '2', max_depth => -1); # $x = 0
+    $x = version_compare(1, 2, -1); # $x = 0
 
 =cut
 
-sub compare_to {
-  my ($this, %settings) = @_;
-    _check_comparison_settings(\%settings);
-    my $max_depth = exists $settings{max_depth} ? $settings{max_depth} : $this->{max_depth};
-    $this->_compare_to_mvn_version(_get_version($settings{version}), $max_depth);
+sub version_compare {
+  my ($v1, $v2, $max_depth) = @_;
+  return unless defined($v1) || defined($v2);
+  $max_depth = defined $max_depth ? $max_depth : 0;
+  my $depth = 0;
+  my @listitem1 = version_parse($v1);
+  my @listitem2 = version_parse($v2);
+  _compare_listitems(\@listitem1, \@listitem2, $max_depth, \$depth);
 }
 
-=head2 new
+=head2 version_parse
 
-Construct new C<Java::Maven::Artifact::Version>.
+will return normalized version representation (see L</"Normalization">).
 
-C<version> parameter is mandatory. 
-  
-    my $v = Java::Maven::Artifact::Version->new(version => '1.00');
+In B<scalar context>, it will return string representation :
 
-If not set, C<version> will be '0'
+    $s = version_parse('1.0-final-1'); # $s = '(1,(,1))'
 
-    my $v = Java::Maven::Artifact::Version->new(); 
-    print($v->{version}); # will print '0'
+You would have the same string if you had call C<org.apache.maven.artifact.versioning.ComparableVersion.ListItem.toString()> private method of C<org.apache.maven.artifact.versioning.ComparableVersion.java> on the main C<ListItem>.
 
-Please note that it could take an optional C<max_depth> parameter :
-    
-    my $v = Java::Maven::Artifact::Version->new(version => '1-1.0-alpha', max_depth => 3);
+In B<list context>, it will return the data structure representation :
 
-The C<max_depth> parameter will involve a peculiar mechanism by default during comparison.
-Please see L</compare_to> method for more details about C<max_depth>.
-
-B<Warnings> : C<version> and C<items> attributes should not be changed during C<Java::Maven::Artifact::Version> object lifecycle. It may have side effects. Consider construct new C<Java::Maven::Artifact::Version> instead.
-
-The L<zero appending|/zero appending on blank separator>, alias substitutions and L</Normalization> will be processed during construction.
+    @l = version_parse('1.0-final-1'); # [1,['',1]]
 
 =cut
 
-sub new {
-  my ($class, %parameters) = @_;
-  my $settings = _init(\%parameters);
-  my $this = $settings; 
-  bless($this, $class);
-  $this;
+sub version_parse {
+  my ($v) = @_;
+  return unless defined wantarray;
+  my $listitem = _normalize(_split_to_lists(lc($v), ()));
+  wantarray ? @$listitem : _to_normalized_string($listitem);
 }
 
-=head2 to_string 
-
-will return normalized version representation (see L</"Normalization">)
-
-    $v = Java::Maven::Artifact::Version->new(version => '1.0-final-1');
-    $s = $v->to_string(); # $s = '(1,(,1))'
-
-Then if you want to get the original set version use the C<version> attribute instead :
-
-    $s = $v->{version}; # $s = '1.0-final-1'
-
-And if you want to get the inside version C<listitem> use the C<items> attribute :
-
-    $s = $v->{items}; # $s = [1,['',1]]
-
-=cut
-
-sub to_string {
-  my ($this) = @_;
-  _to_normalized_string($this->{items});
-}
 
 =head1 MAVEN VERSION COMPATIBILITY
 
