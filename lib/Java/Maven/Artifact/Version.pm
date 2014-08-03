@@ -3,9 +3,12 @@ package Java::Maven::Artifact::Version;
 use 5.006;
 use strict;
 use warnings FATAL => 'all';
+use Exporter;
 use Scalar::Util qw/reftype/;
 use Carp;
 
+our @ISA = qw/Exporter/;
+our @EXPORT_OK = qw/&version_parse &version_compare/;
 =head1 NAME
 
 Java::Maven::Artifact::Version - a perl module for comparing Artifact versions exactly like Maven does.
@@ -322,22 +325,6 @@ sub _identify_scalar_item_type {
   $scalar =~ m/^\d+$/ ? _INTEGER_ITEM : _STRING_ITEM;
 }
 
-sub _init {
-  my ($parameters) = @_;
-  my $settings = { 
-    version         => 0,
-    max_depth       => 0
-  };
-  if (%$parameters) {
-    while ( my ($k, $v) = each %$parameters) {
-      $settings->{$k} = $v if (exists($settings->{$k}));
-    }
-    $settings->{version} = lc($settings->{version}); #TODO use locale.EN
-  }
-  $settings->{items} = _normalize(_split_to_lists($settings->{version}, ()));
-  $settings;
-}
-
 sub _is_nullitem {
   my ($item) = @_;
   (not defined($item)) ? 1 : _UNDEF eq reftype(_getref($item));
@@ -515,11 +502,21 @@ Note that set negative C<max_depth> will always return 0, because no comparison 
 
 =cut
 
-sub compare_to {
-  my ($this, %settings) = @_;
-    _check_comparison_settings(\%settings);
-    my $max_depth = exists $settings{max_depth} ? $settings{max_depth} : $this->{max_depth};
-    $this->_compare_to_mvn_version(_get_version($settings{version}), $max_depth);
+sub version_compare {
+  my ($v1, $v2, $max_depth) = @_;
+  return unless defined($v1) || defined($v2);
+  $max_depth = defined $max_depth ? $max_depth : 0;
+  my $depth = 0;
+  my @listitem1 = version_parse($v1);
+  my @listitem2 = version_parse($v2);
+  _compare_listitems(\@listitem1, \@listitem2, $max_depth, \$depth);
+}
+
+sub version_parse {
+  my ($v) = @_;
+  return unless defined wantarray;
+  my $listitem = _normalize(_split_to_lists(lc($v), ()));
+  wantarray ? @$listitem : _to_normalized_string($listitem);
 }
 
 =head2 new
@@ -548,13 +545,6 @@ The L<zero appending|/zero appending on blank separator>, alias substitutions an
 
 =cut
 
-sub new {
-  my ($class, %parameters) = @_;
-  my $settings = _init(\%parameters);
-  my $this = $settings; 
-  bless($this, $class);
-  $this;
-}
 
 =head2 to_string 
 
@@ -572,11 +562,6 @@ And if you want to get the inside version C<listitem> use the C<items> attribute
     $s = $v->{items}; # $s = [1,['',1]]
 
 =cut
-
-sub to_string {
-  my ($this) = @_;
-  _to_normalized_string($this->{items});
-}
 
 =head1 MAVEN VERSION COMPATIBILITY
 
