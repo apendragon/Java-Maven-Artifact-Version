@@ -358,6 +358,14 @@ sub _replace_special_aliases {
   $string;
 }
 
+# split 'xxx12' to ['xxx',12] and vice versa
+sub _split_hybrid_items {
+  my ($string) = @_;
+  $string =~ s/(\D)(\d)/$1.$2/g;
+  $string =~ s/(\d)(\D)/$1.$2/g;
+  split /\./, $string;
+}
+
 # _split_to_items must only be called when version has been splitted into listitems
 # Then it works only on a single listitem
 sub _split_to_items {
@@ -370,8 +378,8 @@ sub _split_to_items {
     $i = _append_zero($i);
     $i = _replace_special_aliases($i); #must be replaced BEFORE items splitting
     my @xs = split(/\-|\./, $i);
-    my @xsp = map({ _replace_alias($_) } @xs); #must be replaced after items splitting
-    push(@items, @{_normalize(\@xsp)} );
+    @xs = map({ _replace_alias($_) } @xs); #must be replaced after items splitting
+    push(@items, @{_normalize(\@xs)} );
   };
   map { $closure->($_) } @tonormalize;
   @items;

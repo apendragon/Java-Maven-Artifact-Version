@@ -5,7 +5,7 @@ use warnings FATAL => 'all';
 use Test::More;
 use Java::Maven::Artifact::Version qw/version_parse/;
 
-plan tests => 17;
+plan tests => 18;
 
 BEGIN {
   #test 1 : 1.0 normalized to (1)
@@ -58,6 +58,9 @@ BEGIN {
   
   #test 17 : zero appending does not build listitem on dash
   is(version_parse('-1-.1'), '(0,1,0,1)');
+
+  #test 18 : stringitem with digit split stringitem to items
+  is(version_parse('m1char'), '(milestone,1,char)');
 }
 
 diag( "Testing normalization Java::Maven::Artifact::Version $Java::Maven::Artifact::Version::VERSION feature" );
