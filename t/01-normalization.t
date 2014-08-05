@@ -5,7 +5,7 @@ use warnings FATAL => 'all';
 use Test::More;
 use Java::Maven::Artifact::Version qw/version_parse/;
 
-plan tests => 18;
+plan tests => 20;
 
 BEGIN {
   #test 1 : 1.0 normalized to (1)
@@ -61,6 +61,12 @@ BEGIN {
 
   #test 18 : stringitem with digit split stringitem to items
   is(version_parse('m1char'), '(milestone,1,char)');
+  
+  #test 19 : stringitem with digit split stringitem to items
+  is(version_parse('12xxx'), '(12,xxx)');
+
+  #test 20 : stringitem with digit split stringitem to items
+  is(version_parse('xxx12'), '(xxx,12)');
 }
 
 diag( "Testing normalization Java::Maven::Artifact::Version $Java::Maven::Artifact::Version::VERSION feature" );

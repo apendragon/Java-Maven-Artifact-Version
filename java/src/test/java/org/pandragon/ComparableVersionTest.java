@@ -65,7 +65,7 @@ public class ComparableVersionTest extends TestCase {
         //test 18
         assertEquals("(milestone,1,char)", normalizer.toString("m1char"));
         //test 19
-        assertEquals("(milestone,12)", normalizer.toString("m12"));
+        assertEquals("(12,xxx)", normalizer.toString("12xxx"));
         //test 20
         assertEquals("(xxx,12)", normalizer.toString("xxx12"));
     }

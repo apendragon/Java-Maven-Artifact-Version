@@ -379,6 +379,7 @@ sub _split_to_items {
     $i = _replace_special_aliases($i); #must be replaced BEFORE items splitting
     my @xs = split(/\-|\./, $i);
     @xs = map({ _replace_alias($_) } @xs); #must be replaced after items splitting
+    @xs = map({ $_ !~ /^\s*$/ ? _split_hybrid_items($_) : $_ } @xs); 
     push(@items, @{_normalize(\@xs)} );
   };
   map { $closure->($_) } @tonormalize;
