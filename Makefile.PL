@@ -25,16 +25,16 @@ WriteMakefile(
     clean => { FILES => 'Java-Maven-Artifact-Version-*' },
     META_MERGE => {
       'meta-spec' => { version => 2 },
-      license     => ['https://github.com/pandragon-/Java-Maven-Artifact-Version/blob/master/LICENSE'],
-      homepage    => 'https://github.com/pandragon-/Java-Maven-Artifact-Version/wiki',
+      license     => ['https://github.com/apendragon/Java-Maven-Artifact-Version/blob/master/LICENSE'],
+      homepage    => 'https://github.com/apendragon/Java-Maven-Artifact-Version/wiki',
       bugtracker  => {
-        web    => 'https://github.com/pandragon-/Java-Maven-Artifact-Version/issues',
+        web    => 'https://github.com/apendragon/Java-Maven-Artifact-Version/issues',
         mailto => 'pandragon@cpan.org',
       },
       resources   => {
         type   => 'git',
-        url    => 'git@github.com:pandragon-/Java-Maven-Artifact-Version.git',
-        web    => 'https://github.com/pandragon-/Java-Maven-Artifact-Version.git',
+        url    => 'git@github.com:apendragon/Java-Maven-Artifact-Version.git',
+        web    => 'https://github.com/apendragon/Java-Maven-Artifact-Version.git',
       },
     },
 );
