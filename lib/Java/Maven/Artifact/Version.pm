@@ -515,6 +515,7 @@ L</version_parse> function reproduces this algo for the whole set C<Java::Maven:
 It is not very clear in the official Maven doc.
 
 Comparing C<listitem> with C<nullitem> will just compare first C<item> of the C<listitem> with C<nullitem>.
+
 =head1 MAVEN VERSION COMPATIBILITY
 
 This version is fully compatible with the C<org.apache.maven.artifact.versioning.ComparableVersion.java> algo of C<org.apache.maven:maven-artifact:3.2.2> embedded with Maven 3.2.2
