@@ -194,22 +194,5 @@ public class ComparableVersionTest extends TestCase {
             return normalized;
         }
     }
-    public static void main(String[] args) {
-        ComparableVersion version = new ComparableVersion("1.0");
-
-        Class<?> c = version.getClass();
-        try {
-            Field items = c.getDeclaredField("items");
-            items.setAccessible(true);
-            Object o = items.get(version);
-            System.out.println(o.toString());
-
-        } catch (NoSuchFieldException e) {
-            e.printStackTrace();
-        } catch (IllegalAccessException e) {
-            e.printStackTrace();
-        }
-
-    }
 }
 
