@@ -46,87 +46,7 @@ Because there is a gap between the truth coded in C<org.apache.maven.artifact.ve
 
 Lucky for you this module cares about the real comparison differences hard coded in C<ComparableVersion> and reproduces it.
 
-=head2 What are differences between actual Maven comparison algo and that described in the official Maven doc ?
-
-=head3 zero appending on blank separator 
-
-zero ('C<0>') will be appended on each blank separator char (dot '.' or dash '-')
-During parsing if separator char is encountered and it was not preceded by C<stringitem> or C<listitem>, zero char ('C<0>') is automatically appended.
-Then version that begins with separator is automatically prefixed by zero.
-
-'C<-1>' will be internally moved to 'C<0-1>'.
-
-'C<1....1>' will be internally moved to 'C<1.0.0.0.1>'.
-
-=head3 The dash separator "B<->" 
-
-The dash separator "B<->" will create C<listitem> only if it is preceeded by an C<integeritem> and it is followed by digit.
-
-Then when they say C<1-alpha10-SNAPSHOT =E<gt> [1,["alpha",10,["SNAPSHOT"]]]> understand that it's wrong. 
-
-C<1-alpha10-SNAPSHOT> is internally represented by C<[1,"alpha",10,"SNAPSHOT"]>. Which has a fully different comparison behavior because no sub C<listitem> is created.
-
-Please note that L</zero appending on blank separator> has been done B<after> C<listitem> splitting. 
-
-Then understand that 'C<-1--1>' will B<NOT> be internally represented by 'C<(0,(1,(0,(1))>', but by 'C<(0,1,0,1)>'.
-
-
-=head3 Normalization
-
-Normalization is one of the most important part of version comparison but it is not described at all in the official Maven document.
-So what is I<normalization> ?
-It's kind of reducing version components function.
-Its aim is to shoot useless version components in artifact version. To simplify it, understand that C<1.0> must be internally represented by C<1> during comparison.
-But I<normalization> appends in specific times during artifact version parsing.
-
-It appends:
-
-=over 4
-
-=item 1. each time a dash 'C<->' separator is preceded by digit but B<before> any alias substitution (except when any of these digits is a L<zero appended|/zero appending on blank separator>, because C<listitem> splitting is done before 'zero appending').
-
-
-=item 2. at the end of each parsed C<listitem>, then B<after> all alias substitution
-
-=back
-
-And I<normalization> process current parsed C<listitem> from current position when normalization is called, back to the beginning of this current C<listitem>.
-
-Each encountered C<nullitem> will be shot until a non C<nullitem> is encountered or until the begining of this C<listitem> is reached if all its items are C<nullitems>. 
-In this last case precisely, the empty C<listitem> will be shot except if it is the main one.
-
-Then understand that :
-
-=over 4
-
-=item * C<1.0.alpha.0> becomes C<(1,0,alpha)> #because when main C<listitem> parsing has ended, I<normalization> has been called. Last item was 0, 0 is the C<nullitem> of C<integeritem>, then it has been shooted. Next last item was C<alpha> that is not C<nullitem> then normalization process stopped.
-
-=item * C<1.0-final-1> becomes C<(1,,1)> #because a dash has been encoutered during parsing. Then normalization has been called because it was preceded by a digit and last item in the current C<listitem> is 0. Then it has been shot. C<final> has been substituted by C<''> but when next normalization has been called, at the end of the parsing, the last item was not C<nullitem>, then normalization did not meet C<''>.
-
-=item * C<0.0.ga> becomes C<()> # because 'ga' has been substituted by C<''> and when C<listitem> has been normalized at the end, all items where C<nullitem>s
-
-=item * C<final-0.1 becomes> (,0,1) # because normalization has not been called after first dash because it was not been preceded by digit.
-
-=back
-
-If you told me I<WTF ?>, I would answer I am not responsible of drug consumption...
-
-In C<org.apache.maven.artifact.versioning.ComparableVersion.java>, the representation of normalized version is only displayable with the call of C<org.apache.maven.artifact.versioning.ComparableVersion.ListItem.toString()> private method on the main C<ListItem>.
-
-Comma "C<,>" is used as items separator, and enclosing braces are used to represent C<ListItem>.
-
-For example:
-   in Java world C<org.apache.maven.artifact.versioning.ComparableVersion.ListItem.toString()> on C<"1-0.1"> gives C<"(1,(0,1))">.
-
-L</version_parse> function reproduces this algo for the whole set C<Java::Maven::Artifact::Version>.
-
-    $v = version_parse('1-0.1'); # $v = '(1,(O,1))'
-
-=head3 listitem and nullitem comparison
-
-It is not very clear in the official Maven doc.
-
-Comparing C<listitem> with C<nullitem> will just compare first C<item> of the C<listitem> with C<nullitem>.
+see L</FAQ> for details.
 
 =cut
 
@@ -455,8 +375,6 @@ This function will return :
 
 C<version_compare> can go further. You can set C<max_depth> to stop comparison before the whole version comparison has processed.
 
-B<Why> ? 
-
 Suppose you have to code SCM hook which enforce that pushed artifact source must always begin by the same two version items and new version must be greater than the old one.
 
     my ($old, $new) = ('1.1.12', '1.1.13');
@@ -514,7 +432,89 @@ sub version_parse {
   wantarray ? @$listitem : _to_normalized_string($listitem);
 }
 
+=head1 FAQ
 
+=head2 What are differences between actual Maven comparison algo and that described in the official Maven doc ?
+
+=head3 zero appending on blank separator 
+
+zero ('C<0>') will be appended on each blank separator char (dot '.' or dash '-')
+During parsing if separator char is encountered and it was not preceded by C<stringitem> or C<listitem>, zero char ('C<0>') is automatically appended.
+Then version that begins with separator is automatically prefixed by zero.
+
+'C<-1>' will be internally moved to 'C<0-1>'.
+
+'C<1....1>' will be internally moved to 'C<1.0.0.0.1>'.
+
+=head3 The dash separator "B<->" 
+
+The dash separator "B<->" will create C<listitem> only if it is preceeded by an C<integeritem> and it is followed by digit.
+
+Then when they say C<1-alpha10-SNAPSHOT =E<gt> [1,["alpha",10,["SNAPSHOT"]]]> understand that it's wrong. 
+
+C<1-alpha10-SNAPSHOT> is internally represented by C<[1,"alpha",10,"SNAPSHOT"]>. Which has a fully different comparison behavior because no sub C<listitem> is created.
+
+Please note that L</zero appending on blank separator> has been done B<after> C<listitem> splitting. 
+
+Then understand that 'C<-1--1>' will B<NOT> be internally represented by 'C<(0,(1,(0,(1))>', but by 'C<(0,1,0,1)>'.
+
+
+=head3 Normalization
+
+Normalization is one of the most important part of version comparison but it is not described at all in the official Maven document.
+So what is I<normalization> ?
+It's kind of reducing version components function.
+Its aim is to shoot useless version components in artifact version. To simplify it, understand that C<1.0> must be internally represented by C<1> during comparison.
+But I<normalization> appends in specific times during artifact version parsing.
+
+It appends:
+
+=over 4
+
+=item 1. each time a dash 'C<->' separator is preceded by digit but B<before> any alias substitution (except when any of these digits is a L<zero appended|/zero appending on blank separator>, because C<listitem> splitting is done before 'zero appending').
+
+
+=item 2. at the end of each parsed C<listitem>, then B<after> all alias substitution
+
+=back
+
+And I<normalization> process current parsed C<listitem> from current position when normalization is called, back to the beginning of this current C<listitem>.
+
+Each encountered C<nullitem> will be shot until a non C<nullitem> is encountered or until the begining of this C<listitem> is reached if all its items are C<nullitems>. 
+In this last case precisely, the empty C<listitem> will be shot except if it is the main one.
+
+Then understand that :
+
+=over 4
+
+=item * C<1.0.alpha.0> becomes C<(1,0,alpha)> #because when main C<listitem> parsing has ended, I<normalization> has been called. Last item was 0, 0 is the C<nullitem> of C<integeritem>, then it has been shooted. Next last item was C<alpha> that is not C<nullitem> then normalization process stopped.
+
+=item * C<1.0-final-1> becomes C<(1,,1)> #because a dash has been encoutered during parsing. Then normalization has been called because it was preceded by a digit and last item in the current C<listitem> is 0. Then it has been shot. C<final> has been substituted by C<''> but when next normalization has been called, at the end of the parsing, the last item was not C<nullitem>, then normalization did not meet C<''>.
+
+=item * C<0.0.ga> becomes C<()> # because 'ga' has been substituted by C<''> and when C<listitem> has been normalized at the end, all items where C<nullitem>s
+
+=item * C<final-0.1 becomes> (,0,1) # because normalization has not been called after first dash because it was not been preceded by digit.
+
+=back
+
+If you told me I<WTF ?>, I would answer I am not responsible of drug consumption...
+
+In C<org.apache.maven.artifact.versioning.ComparableVersion.java>, the representation of normalized version is only displayable with the call of C<org.apache.maven.artifact.versioning.ComparableVersion.ListItem.toString()> private method on the main C<ListItem>.
+
+Comma "C<,>" is used as items separator, and enclosing braces are used to represent C<ListItem>.
+
+For example:
+   in Java world C<org.apache.maven.artifact.versioning.ComparableVersion.ListItem.toString()> on C<"1-0.1"> gives C<"(1,(0,1))">.
+
+L</version_parse> function reproduces this algo for the whole set C<Java::Maven::Artifact::Version>.
+
+    $v = version_parse('1-0.1'); # $v = '(1,(O,1))'
+
+=head3 listitem and nullitem comparison
+
+It is not very clear in the official Maven doc.
+
+Comparing C<listitem> with C<nullitem> will just compare first C<item> of the C<listitem> with C<nullitem>.
 =head1 MAVEN VERSION COMPATIBILITY
 
 This version is fully compatible with the C<org.apache.maven.artifact.versioning.ComparableVersion.java> algo of C<org.apache.maven:maven-artifact:3.2.2> embedded with Maven 3.2.2
