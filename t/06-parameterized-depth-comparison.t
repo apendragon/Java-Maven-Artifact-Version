@@ -39,7 +39,7 @@ BEGIN {
   is(version_compare('1-1.1', '1-ga', 3), 1);
   
   # test 11 very deep versions comparison
-  is(version_compare('1-1.0-1-ga-O-1.2', '1-1.0-1-ga-O-1.3', 4), 0);
+  is(version_compare('1-1.0-1-ga-0-1.2', '1-1.0-1-ga-0-1.3', 4), 0);
   #                   ^ ^   ^      ^      ^ ^   ^      ^
 
   # test 12 parameterized negative max_depth 
