@@ -195,11 +195,6 @@ sub _compare_to_mvn_version {
   _compare_listitems($this->{items}, $another_version->{items}, $max_depth, \$depth);
 }
 
-sub _get_version {
-  my ($version) = @_;
-  ref($version) eq 'Java::Maven::Artifact::Version' ? $version : Java::Maven::Artifact::Version->new(version => $version);
-}
-
 sub _getref {
   my ($var) = @_;
   (ref($var) || not defined($var)) ? $var : \$var; # var may already be a ref
