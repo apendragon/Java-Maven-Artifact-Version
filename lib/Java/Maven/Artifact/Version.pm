@@ -15,13 +15,13 @@ Java::Maven::Artifact::Version - a perl module for comparing Artifact versions e
 
 =head1 VERSION
 
-Version 1.00
+Version 1.01
 
 see L</MAVEN VERSION COMPATIBILITY>.
 
 =cut
 
-our $VERSION = '1.00';
+our $VERSION = '1.01';
 
 =head1 SYNOPSIS
 
@@ -513,7 +513,15 @@ Comparing C<listitem> with C<nullitem> will just compare first C<item> of the C<
 
 =head1 MAVEN VERSION COMPATIBILITY
 
-This version is fully compatible with the C<org.apache.maven.artifact.versioning.ComparableVersion.java> algo of C<org.apache.maven:maven-artifact:3.2.2> embedded with Maven 3.2.2
+This version is fully compatible with the C<org.apache.maven.artifact.versioning.ComparableVersion.java> algo of C<org.apache.maven:maven-artifact> embedded with : 
+
+=over 4
+
+=item * Maven 3.2.3
+
+=item * Maven 3.2.2
+
+=back
 
 All L<Test::More|http://search.cpan.org/~exodist/Test-Simple-1.001003/lib/Test/More.pm> tests are also available with Java Junit tests to ensure comparison results are similars.
 

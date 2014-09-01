@@ -1,5 +1,8 @@
 Revision history for Java-Maven-Artifact-Version
 
+1.01    20140901/12:00:00
+        Maven 3.2.3 compatibility approved.
+
 1.00    20140714/17:00:00
         First version, released.
 
