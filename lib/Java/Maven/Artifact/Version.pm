@@ -33,7 +33,7 @@ Note that this documentation is intended as a reference to the module.
     my $x = version_compare('1.0', '1-0.alpha'); # $x = 0
 
     my $z = version_parse('1-1.2-alpha'); # $z = '(1,(1,2,alpha))' 
-    my @l = version_parse('1-1.2-alpha'); # [1,[1,2,'alpha']]
+    my @l = version_parse('1-1.2-alpha'); # @l = (1,[1,2,'alpha'])
 
 =head1 DESCRIPTION
 
