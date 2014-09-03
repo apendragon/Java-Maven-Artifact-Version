@@ -76,12 +76,6 @@ sub _append_zero {
   join '.',  map { $_ eq '' ? '0' : $_  } split /\-|\./, shift;
 }
 
-sub _check_comparison_settings {
-  my ($settings) = @_;
-  croak("'version' mandatory parameter is missing") if not exists $settings->{version};
-  carp("'max_depth' should be >= 0") if (exists $settings->{max_depth} && $settings->{max_depth} <= 0);
-}
-
 sub _compare_integeritem_to {
   my ($integeritem, $item, $depth) = @_;
   my $dispatch = {
@@ -186,13 +180,6 @@ sub _compare_stringitem_to_stringitem {
   my ($stringitem1, $stringitem2, $depth) = @_;
   $$depth++;
   _substitute_to_qualifier($stringitem1) cmp _substitute_to_qualifier($stringitem2);
-}
-
-sub _compare_to_mvn_version {
-  my ($this, $another_version, $max_depth) = @_;
-  die("parameter is not a Java::Maven::Artifact::Version") unless ($another_version->isa('Java::Maven::Artifact::Version')); 
-  my $depth = 0;
-  _compare_listitems($this->{items}, $another_version->{items}, $max_depth, \$depth);
 }
 
 sub _getref {
