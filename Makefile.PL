@@ -10,7 +10,7 @@ WriteMakefile(
     ABSTRACT_FROM    => 'lib/Java/Maven/Artifact/Version.pm',
     LICENSE          => 'Artistic_2_0',
     PL_FILES         => {},
-    MIN_PERL_VERSION => 5.8.8,
+    MIN_PERL_VERSION => '5.8.8',
     CONFIGURE_REQUIRES => {
         'ExtUtils::MakeMaker' => 0,
     },
@@ -25,16 +25,19 @@ WriteMakefile(
     clean => { FILES => 'Java-Maven-Artifact-Version-*' },
     META_MERGE => {
       'meta-spec' => { version => 2 },
-      license     => ['https://github.com/apendragon/Java-Maven-Artifact-Version/blob/master/LICENSE'],
-      homepage    => 'https://github.com/apendragon/Java-Maven-Artifact-Version/wiki',
-      bugtracker  => {
-        web    => 'https://github.com/apendragon/Java-Maven-Artifact-Version/issues',
-        mailto => 'pandragon@cpan.org',
-      },
+      license     => ['artistic_2'],
       resources   => {
-        type   => 'git',
-        url    => 'git@github.com:apendragon/Java-Maven-Artifact-Version.git',
-        web    => 'https://github.com/apendragon/Java-Maven-Artifact-Version.git',
+        homepage    => 'https://github.com/apendragon/Java-Maven-Artifact-Version/wiki',
+        license     => ['https://github.com/apendragon/Java-Maven-Artifact-Version/blob/master/LICENSE'],
+        repository  => {
+          type   => 'git',
+          url    => 'git://github.com/apendragon/Java-Maven-Artifact-Version.git',
+          web    => 'https://github.com/apendragon/Java-Maven-Artifact-Version.git',
+        },
+        bugtracker  => {
+          web    => 'https://github.com/apendragon/Java-Maven-Artifact-Version/issues',
+          mailto => 'pandragon@cpan.org',
+        },
       },
     },
 );
