@@ -24,9 +24,10 @@ WriteMakefile(
     dist  => { COMPRESS => 'gzip -9f', SUFFIX => 'gz', },
     clean => { FILES => 'Java-Maven-Artifact-Version-*' },
     META_MERGE => {
-      'meta-spec' => { version => 2 },
-      license     => ['artistic_2'],
-      resources   => {
+      'meta-spec'    => { version => 2 },
+      license        => ['artistic_2'],
+      dynamic_config => 0,
+      resources      => {
         homepage    => 'https://github.com/apendragon/Java-Maven-Artifact-Version/wiki',
         license     => ['https://github.com/apendragon/Java-Maven-Artifact-Version/blob/master/LICENSE'],
         repository  => {
