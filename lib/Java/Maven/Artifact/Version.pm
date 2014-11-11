@@ -1,6 +1,6 @@
 package Java::Maven::Artifact::Version;
 
-use 5.006;
+use 5.8.8;
 use strict;
 use warnings FATAL => 'all';
 use Exporter;
