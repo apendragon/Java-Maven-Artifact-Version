@@ -1,6 +1,6 @@
 package Java::Maven::Artifact::Version;
 
-use 5.8.8;
+use 5.008008;
 use strict;
 use warnings FATAL => 'all';
 use Exporter;
@@ -15,13 +15,13 @@ Java::Maven::Artifact::Version - a perl module for comparing Artifact versions e
 
 =head1 VERSION
 
-Version 1.01
+Version 1.000001
 
 see L</MAVEN VERSION COMPATIBILITY>.
 
 =cut
 
-our $VERSION = '1.01';
+our $VERSION = '1.000001';
 
 =head1 SYNOPSIS
 
