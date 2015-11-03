@@ -1,3 +1,7 @@
+WARNING : The Java comparison Algo has fully changed with Maven 3.2.5.
+This Perl version is not compatible any more with this Java version and above.
+An update will be pushed very soon. Thx for your understanding.
+
 Java::Maven::Artifact::Version 
 
 A perl module for comparing Artifact versions exactly like Maven does.
